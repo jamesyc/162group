@@ -21,10 +21,6 @@
    when they call timer_sleep. */
 static struct list asleep_list;
 
-/* Semaphore used in blocking sleeping processes until they are 
-   ready to be woken up. */
-static struct semaphore kick;
-
 /* Number of timer ticks since OS booted. */
 static int64_t ticks;
 
@@ -47,7 +43,6 @@ timer_init (void)
   intr_register_ext (0x20, timer_interrupt, "8254 Timer");
 
   list_init (&asleep_list);
-  sema_init (&kick, 0);
 }
 
 /* Calibrates loops_per_tick, used to implement brief delays. */
@@ -126,10 +121,6 @@ timer_sleep (int64_t ticks)
   /* Block here until woken up by the timer interrupt. */
   thread_block ();
   intr_set_level(old);
-  // sema_down(&kick);
-
-  // while (timer_elapsed (start) < ticks) 
-  //   thread_yield ();
 }
 
 /* Sleeps for approximately MS milliseconds.  Interrupts must be
@@ -211,9 +202,9 @@ timer_interrupt (struct intr_frame *args UNUSED)
 
   /* Iterate through all the sleeping processes and wake up the
      ones which have expired timers. */
-  struct list_elem *e = list_begin (&asleep_list);
+  struct list_elem *e;
 
-  while (e != list_end (&asleep_list))
+  for (e = list_begin (&asleep_list); e != list_end (&asleep_list); e = list_next (e))
     {
       struct thread *t = list_entry (e, struct thread, asleep_elem);
 
@@ -222,7 +213,6 @@ timer_interrupt (struct intr_frame *args UNUSED)
         thread_unblock (t);
       }
 
-      e = list_next (e);
     }
 }
 
