@@ -139,6 +139,18 @@ thread_tick (void)
     intr_yield_on_return ();
 }
 
+/* Returns TRUE if the first thread has a higher priority than the
+   second thread, otherwise returns FALSE. Used to insert threads 
+   into the ready queue in sorted order so that higher-priority
+   threads take precedence. */
+bool
+priority_cmp (const struct list_elem *a, const struct list_elem *b, void *aux)
+{
+  struct thread *thread_a = list_entry(a, struct thread, elem);
+  struct thread *thread_b = list_entry(b, struct thread, elem);
+  return (thread_a->priority > thread_b->priority);
+}
+
 /* Prints thread statistics. */
 void
 thread_print_stats (void) 
@@ -237,7 +249,7 @@ thread_unblock (struct thread *t)
 
   old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
-  list_push_back (&ready_list, &t->elem);
+  list_insert_ordered (&ready_list, &t->elem, (list_less_func *) &priority_cmp, NULL);
   t->status = THREAD_READY;
   intr_set_level (old_level);
 }
@@ -308,7 +320,7 @@ thread_yield (void)
 
   old_level = intr_disable ();
   if (cur != idle_thread) 
-    list_push_back (&ready_list, &cur->elem);
+    list_insert_ordered (&ready_list, &cur->elem, (list_less_func *) &priority_cmp, NULL);
   cur->status = THREAD_READY;
   schedule ();
   intr_set_level (old_level);
