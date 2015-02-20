@@ -371,6 +371,10 @@ void
 thread_set_priority (int new_priority) 
 {
   thread_current ()->priority = new_priority;
+
+  /* If a thread changes its priority, check to see if another thread
+     supercedes it. */
+  thread_priority_yield();
 }
 
 /* Returns the current thread's priority. */
