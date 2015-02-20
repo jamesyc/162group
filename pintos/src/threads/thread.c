@@ -213,6 +213,9 @@ thread_create (const char *name, int priority,
   /* Add to run queue. */
   thread_unblock (t);
 
+  /* Yield when a higher-priority thread is added to the queue. */
+  thread_priority_yield();
+
   return tid;
 }
 
@@ -308,6 +311,26 @@ thread_exit (void)
   NOT_REACHED ();
 }
 
+
+/* Yields the CPU if a thread with a higher priority is added to the 
+   ready list. Should be checked on every thread tick. */
+void
+thread_priority_yield (void)
+{
+  if (list_empty (&ready_list))
+    return;
+
+  struct thread *cur = thread_current ();
+
+  struct list_elem *e = list_begin (&ready_list);
+  struct thread *t = list_entry (e, struct thread, elem);
+
+  if (t->priority > cur->priority) {
+    thread_yield ();
+  }
+}
+
+
 /* Yields the CPU.  The current thread is not put to sleep and
    may be scheduled again immediately at the scheduler's whim. */
 void
@@ -387,7 +410,7 @@ thread_get_recent_cpu (void)
   /* Not yet implemented. */
   return 0;
 }
-
+
 /* Idle thread.  Executes when no other thread is ready to run.
 
    The idle thread is initially put on the ready list by
