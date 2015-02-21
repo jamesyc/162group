@@ -139,6 +139,18 @@ thread_tick (void)
     intr_yield_on_return ();
 }
 
+/* Returns TRUE if the first thread has a higher priority than the
+   second thread, otherwise returns FALSE. Used to insert threads 
+   into the ready queue in sorted order so that higher-priority
+   threads take precedence. */
+bool
+priority_cmp (const struct list_elem *a, const struct list_elem *b, void *aux)
+{
+  struct thread *thread_a = list_entry(a, struct thread, elem);
+  struct thread *thread_b = list_entry(b, struct thread, elem);
+  return (thread_a->priority > thread_b->priority);
+}
+
 /* Prints thread statistics. */
 void
 thread_print_stats (void) 
@@ -201,6 +213,9 @@ thread_create (const char *name, int priority,
   /* Add to run queue. */
   thread_unblock (t);
 
+  /* Yield when a higher-priority thread is added to the queue. */
+  thread_priority_yield();
+
   return tid;
 }
 
@@ -237,7 +252,7 @@ thread_unblock (struct thread *t)
 
   old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
-  list_push_back (&ready_list, &t->elem);
+  list_insert_ordered (&ready_list, &t->elem, (list_less_func *) &priority_cmp, NULL);
   t->status = THREAD_READY;
   intr_set_level (old_level);
 }
@@ -296,6 +311,26 @@ thread_exit (void)
   NOT_REACHED ();
 }
 
+
+/* Yields the CPU if a thread with a higher priority is added to the 
+   ready list. Should be checked on every thread tick. */
+void
+thread_priority_yield (void)
+{
+  if (list_empty (&ready_list))
+    return;
+
+  struct thread *cur = thread_current ();
+
+  struct list_elem *e = list_begin (&ready_list);
+  struct thread *t = list_entry (e, struct thread, elem);
+
+  if (t->priority > cur->priority) {
+    thread_yield ();
+  }
+}
+
+
 /* Yields the CPU.  The current thread is not put to sleep and
    may be scheduled again immediately at the scheduler's whim. */
 void
@@ -308,7 +343,7 @@ thread_yield (void)
 
   old_level = intr_disable ();
   if (cur != idle_thread) 
-    list_push_back (&ready_list, &cur->elem);
+    list_insert_ordered (&ready_list, &cur->elem, (list_less_func *) &priority_cmp, NULL);
   cur->status = THREAD_READY;
   schedule ();
   intr_set_level (old_level);
@@ -336,6 +371,10 @@ void
 thread_set_priority (int new_priority) 
 {
   thread_current ()->priority = new_priority;
+
+  /* If a thread changes its priority, check to see if another thread
+     supercedes it. */
+  thread_priority_yield();
 }
 
 /* Returns the current thread's priority. */
@@ -375,7 +414,7 @@ thread_get_recent_cpu (void)
   /* Not yet implemented. */
   return 0;
 }
-
+
 /* Idle thread.  Executes when no other thread is ready to run.
 
    The idle thread is initially put on the ready list by

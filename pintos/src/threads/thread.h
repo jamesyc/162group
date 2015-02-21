@@ -126,6 +126,7 @@ tid_t thread_tid (void);
 const char *thread_name (void);
 
 void thread_exit (void) NO_RETURN;
+void thread_priority_yield (void);
 void thread_yield (void);
 
 /* Performs some operation on thread t, given auxiliary data AUX. */
