@@ -17,6 +17,10 @@
 #error TIMER_FREQ <= 1000 recommended
 #endif
 
+/* List of sleeping processes. Processes are added to this list
+   when they call timer_sleep. */
+static struct list asleep_list;
+
 /* Number of timer ticks since OS booted. */
 static int64_t ticks;
 
@@ -37,6 +41,8 @@ timer_init (void)
 {
   pit_configure_channel (0, 2, TIMER_FREQ);
   intr_register_ext (0x20, timer_interrupt, "8254 Timer");
+
+  list_init (&asleep_list);
 }
 
 /* Calibrates loops_per_tick, used to implement brief delays. */
@@ -84,6 +90,17 @@ timer_elapsed (int64_t then)
   return timer_ticks () - then;
 }
 
+/* Returns TRUE if the first thread wakes up earlier than the 
+   second thread, otherwise returns FALSE. Used to insert threads 
+   into the list of sleeping processes in sorted order. */
+bool
+tick_cmp (const struct list_elem *a, const struct list_elem *b, void *aux)
+{
+  struct thread *thread_a = list_entry(a, struct thread, elem);
+  struct thread *thread_b = list_entry(b, struct thread, elem);
+  return (thread_a->wake_tick < thread_b->wake_tick);
+}
+
 /* Sleeps for approximately TICKS timer ticks.  Interrupts must
    be turned on. */
 void
@@ -92,8 +109,18 @@ timer_sleep (int64_t ticks)
   int64_t start = timer_ticks ();
 
   ASSERT (intr_get_level () == INTR_ON);
-  while (timer_elapsed (start) < ticks) 
-    thread_yield ();
+  struct thread *t = thread_current ();
+
+  /* Synchronously add the current thread to a sorted list of sleeping
+     processes. */
+  enum intr_level old = intr_disable();
+  t->wake_tick = start + ticks;
+
+  list_insert_ordered (&asleep_list, &t->asleep_elem, (list_less_func *) &tick_cmp, NULL);
+  
+  /* Block here until woken up by the timer interrupt. */
+  thread_block ();
+  intr_set_level(old);
 }
 
 /* Sleeps for approximately MS milliseconds.  Interrupts must be
@@ -165,13 +192,28 @@ timer_print_stats (void)
 {
   printf ("Timer: %"PRId64" ticks\n", timer_ticks ());
 }
-
+
 /* Timer interrupt handler. */
 static void
 timer_interrupt (struct intr_frame *args UNUSED)
 {
   ticks++;
   thread_tick ();
+
+  /* Iterate through all the sleeping processes and wake up the
+     ones which have expired timers. */
+  struct list_elem *e;
+
+  for (e = list_begin (&asleep_list); e != list_end (&asleep_list); e = list_next (e))
+    {
+      struct thread *t = list_entry (e, struct thread, asleep_elem);
+
+      if (ticks >= t->wake_tick) {
+        list_remove (e);
+        thread_unblock (t);
+      }
+
+    }
 }
 
 /* Returns true if LOOPS iterations waits for more than one timer
