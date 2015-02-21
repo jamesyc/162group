@@ -99,6 +99,10 @@ struct thread
     struct list_elem asleep_elem;
     int64_t wake_tick;                  /* The tick when the thread should be woken. */
 
+    /* Used in the advanced scheduler implementation. */
+    int nice;
+    int recent_cpu;
+
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
