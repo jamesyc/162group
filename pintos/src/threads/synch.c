@@ -33,18 +33,6 @@
 #include "threads/thread.h"
 
 
-/* Returns TRUE if the first thread has a higher priority than the  
-   second thread, otherwise returns FALSE. Used to insert threads 
-   into a list of lock waiters in sorted order. */
-bool
-priority_cmp (const struct list_elem *a, const struct list_elem *b, void *aux)
-{
-  struct thread *thread_a = list_entry(a, struct thread, elem);
-  struct thread *thread_b = list_entry(b, struct thread, elem);
-  return (thread_a->priority > thread_b->priority);
-}
-
-
 /* Initializes semaphore SEMA to VALUE.  A semaphore is a
    nonnegative integer along with two atomic operators for
    manipulating it:
