@@ -26,6 +26,11 @@ typedef int tid_t;
 #define PRI_DEFAULT 31                  /* Default priority. */
 #define PRI_MAX 63                      /* Highest priority. */
 
+/* Thread niceness levels. */
+#define NICE_MIN -20                    /* Lowest niceness. */
+#define NICE_DEFAULT 0                  /* Default niceness. */
+#define NICE_MAX 20                     /* Highest niceness. */
+
 /* A kernel thread or user process.
 
    Each thread structure is stored in its own 4 kB page.  The
@@ -91,6 +96,8 @@ struct thread
     uint8_t *stack;                     /* Saved stack pointer. */
     int priority;                       /* Priority. */
     struct list_elem allelem;           /* List element for all threads list. */
+    int mlfqs_niceness;                 /* Niceness of thread according to mlfqs */
+    int mlfqs_recentcpu;                /* Recent cpu of thread according to mlfqs */
 
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
@@ -98,10 +105,6 @@ struct thread
     /* Used in the alarm clock implementation. */
     struct list_elem asleep_elem;
     int64_t wake_tick;                  /* The tick when the thread should be woken. */
-
-    /* Used in the advanced scheduler implementation. */
-    int nice;
-    int recent_cpu;
 
 #ifdef USERPROG
     /* Owned by userprog/process.c. */

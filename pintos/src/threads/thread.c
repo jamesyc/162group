@@ -388,14 +388,24 @@ thread_get_priority (void)
 void
 thread_set_nice (int nice) 
 {
-  thread_current ()->nice = nice;
+  /* Now implemented. */
+  ASSERT(thread_mlfqs);
+  ASSERT(nice <= NICE_MAX);
+  ASSERT(nice >= NICE_MIN);
+
+  thread_current()->mlfqs_niceness = nice;
+  // Need to recalculate thread priority from new niceness value
+  int new_priority = 0; // change later to function that finds priority from current thread
+  thread_set_priority(new_priority);
 }
 
 /* Returns the current thread's nice value. */
 int
 thread_get_nice (void) 
 {
-  return thread_current ()->nice;
+  /* Now implemented. */
+  ASSERT(thread_mlfqs);
+  return thread_current()->mlfqs_niceness;
 }
 
 /* Returns 100 times the system load average. */
