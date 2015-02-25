@@ -217,8 +217,8 @@ thread_create (const char *name, int priority,
   /* Add to run queue. */
   thread_unblock (t);
 
-  /* Yield when a higher-priority thread is added to the queue. */
-  thread_priority_yield();
+  /* Yield if a higher-priority thread is added to the queue. */
+  thread_yield ();
 
   return tid;
 }
@@ -315,47 +315,33 @@ thread_exit (void)
   NOT_REACHED ();
 }
 
-
+/* Sorts the ready queue in order of priority (higher priority 
+ * threads come first). */
 void
-update_priority (struct thread *t)
+update_ready_queue (void)
 {
   enum intr_level old_level;
-  ASSERT (is_thread (t));
-  old_level = intr_disable ();
+  old_level = intr_disable();
 
-  list_insert_ordered (&ready_list, list_remove (&t->elem), (list_less_func *) &priority_cmp, NULL);
+  list_sort (&ready_list, (list_less_func *) &priority_cmp, NULL);
+
   intr_set_level (old_level);
 }
 
 
-
-/* Yields the CPU if a thread with a higher priority is added to the 
-   ready list. Should be checked every time a thread's priority is
-   changed. */
+/* Updates a thread's position in the ready queue. Used whenever
+   a thread updates its priority, or when a thread is donated 
+   priority from another thread. */
 void
-thread_priority_yield (void)
+update_ready_priority (struct thread *t)
 {
-  // enum intr_level old_level;
-  // old_level = intr_disable ();
+  enum intr_level old_level;
+  ASSERT (is_thread (t));
 
-  if (list_empty (&ready_list))
-    // intr_set_level (old_level);
-    return;
-
-  struct thread *cur = thread_current ();
-
-  // struct list_elem *e = list_max (&ready_list, (list_less_func *) &priority_cmp, NULL);
-
-  struct list_elem *e = list_begin (&ready_list);
-  struct thread *t = list_entry (e, struct thread, elem);
-
-  // intr_set_level (old_level);
-
-  if (t->priority > cur->priority) {
-    thread_yield ();
-  }
+  old_level = intr_disable ();
+  list_insert_ordered (&ready_list, list_remove (&t->elem), (list_less_func *) &priority_cmp, NULL);
+  intr_set_level (old_level);
 }
-
 
 /* Yields the CPU.  The current thread is not put to sleep and
    may be scheduled again immediately at the scheduler's whim. */
@@ -400,7 +386,7 @@ thread_set_priority (int new_priority)
 
   /* If a thread changes its priority, check to see if another thread
      supercedes it. */
-  thread_priority_yield ();
+  thread_yield ();
 }
 
 /* Returns the current thread's priority. */

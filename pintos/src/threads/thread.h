@@ -135,7 +135,8 @@ tid_t thread_tid (void);
 const char *thread_name (void);
 
 void thread_exit (void) NO_RETURN;
-void update_priority (struct thread *t);
+void update_ready_queue (void);
+void update_ready_priority (struct thread *t);
 void thread_priority_yield (void);
 void thread_yield (void);
 

@@ -199,7 +199,7 @@ lock_acquire (struct lock *lock)
   ASSERT (!lock_held_by_current_thread (lock));
 
   /* Follow the chain of donees and donate priority if needed. */
-  // enum intr_level old_level = intr_disable ();
+  enum intr_level old_level = intr_disable ();
 
   struct thread *cur = thread_current ();
   struct thread *donee = lock->holder;
@@ -209,12 +209,13 @@ lock_acquire (struct lock *lock)
     donee->priority = cur->priority;
 
     /* Update the priority of the donee in the ready queue. */
-    // update_priority (donee);
+    update_ready_queue ();
+    // update_ready_priority (donee);
 
     donee = donee->donee;
   }
 
-  // intr_set_level (old_level);
+  intr_set_level (old_level);
   sema_down (&lock->semaphore);
 
   lock->holder = thread_current ();
