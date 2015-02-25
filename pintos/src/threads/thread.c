@@ -98,6 +98,9 @@ thread_init (void)
   init_thread (initial_thread, "main", PRI_DEFAULT);
   initial_thread->status = THREAD_RUNNING;
   initial_thread->tid = allocate_tid ();
+
+  initial_thread->donee = NULL;
+  initial_thread->old_priority = initial_thread->priority;
 }
 
 /* Starts preemptive thread scheduling by enabling interrupts.
@@ -148,6 +151,7 @@ priority_cmp (const struct list_elem *a, const struct list_elem *b, void *aux)
 {
   struct thread *thread_a = list_entry(a, struct thread, elem);
   struct thread *thread_b = list_entry(b, struct thread, elem);
+
   return (thread_a->priority > thread_b->priority);
 }
 
@@ -312,18 +316,40 @@ thread_exit (void)
 }
 
 
+void
+update_priority (struct thread *t)
+{
+  enum intr_level old_level;
+  ASSERT (is_thread (t));
+  old_level = intr_disable ();
+
+  list_insert_ordered (&ready_list, list_remove (&t->elem), (list_less_func *) &priority_cmp, NULL);
+  intr_set_level (old_level);
+}
+
+
+
 /* Yields the CPU if a thread with a higher priority is added to the 
-   ready list. Should be checked on every thread tick. */
+   ready list. Should be checked every time a thread's priority is
+   changed. */
 void
 thread_priority_yield (void)
 {
+  // enum intr_level old_level;
+  // old_level = intr_disable ();
+
   if (list_empty (&ready_list))
+    // intr_set_level (old_level);
     return;
 
   struct thread *cur = thread_current ();
 
+  // struct list_elem *e = list_max (&ready_list, (list_less_func *) &priority_cmp, NULL);
+
   struct list_elem *e = list_begin (&ready_list);
   struct thread *t = list_entry (e, struct thread, elem);
+
+  // intr_set_level (old_level);
 
   if (t->priority > cur->priority) {
     thread_yield ();
@@ -374,7 +400,7 @@ thread_set_priority (int new_priority)
 
   /* If a thread changes its priority, check to see if another thread
      supercedes it. */
-  thread_priority_yield();
+  thread_priority_yield ();
 }
 
 /* Returns the current thread's priority. */

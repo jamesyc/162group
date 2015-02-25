@@ -99,6 +99,10 @@ struct thread
     struct list_elem asleep_elem;
     int64_t wake_tick;                  /* The tick when the thread should be woken. */
 
+    /* Used in the priority donation implementation. */
+    struct thread *donee;
+    int old_priority;
+
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
@@ -131,6 +135,7 @@ tid_t thread_tid (void);
 const char *thread_name (void);
 
 void thread_exit (void) NO_RETURN;
+void update_priority (struct thread *t);
 void thread_priority_yield (void);
 void thread_yield (void);
 
