@@ -219,6 +219,8 @@ lock_acquire (struct lock *lock)
   sema_down (&lock->semaphore);
 
   lock->holder = thread_current ();
+  // Add this lock to list of locks for this thread
+  list_push_back (&lock->holder->active_locks, &lock->elem);
 }
 
 /* Tries to acquires LOCK and returns true if successful or false
@@ -252,38 +254,40 @@ lock_release (struct lock *lock)
   ASSERT (lock != NULL);
   ASSERT (lock_held_by_current_thread (lock));
 
-  // need to disable interrupts?
+  // Disable interrupts
+  enum intr_level old_level = intr_disable ();
+
   lock->holder = NULL;
 
   // loop thru owned locks
   struct thread *t = thread_current();
 
-  // code for the max
-  int pri_max = t->orig_priority;
+  // set a max priority to set
+  int pri_max = t->old_priority;
   struct list_elem *e;
-  // ASSUME LIST STRUCTURE FOR ACUIRED LOCKS, I DONT SEE BRANDON'S CODE
   // see src/lib/kernel/list.c
-  // t->acquired_locks is list of locks, using the list implementation they give us
-  for (e = list_begin (&t->acquired_locks); e != list_end (&t->acquired_locks); e = list_next (e)) 
-  {
+  for (e = list_begin(&t->active_locks); e != list_end(&t->active_locks); e = list_next(e)) {
     struct lock *l = list_entry (e, struct lock, elem);
-    if (list_empty (&l->semaphore.waiters)) 
+    if (list_empty (&l->semaphore.waiters)) {
       continue;
-    struct thread *donor = list_entry (list_front (&l->semaphore.waiters),
-      struct thread, elem);
-    if(donor->priority > pri_max) 
-    {
+    }
+    struct thread *donor = list_entry (list_front (&l->semaphore.waiters), struct thread, elem);
+    if (donor->priority > pri_max) {
       pri_max = donor->priority;
     }
   }
+  // set priority to max given
   t->priority = pri_max;
 
-  // remove from locks_list, assuming that exists
+  // remove lock from active_locks
   list_remove (&lock->elem);
 
-
   sema_up (&lock->semaphore);
-  // need to reenable interrupts?
+  // Reenable interrupts
+  intr_set_level (old_level);
+
+  /* Yield if a higher-priority thread is added to the queue. */
+  // thread_yield ();
 }
 
 /* Returns true if the current thread holds LOCK, false

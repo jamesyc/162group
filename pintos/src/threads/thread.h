@@ -102,6 +102,7 @@ struct thread
     /* Used in the priority donation implementation. */
     struct thread *donee;
     int old_priority;
+    struct list active_locks;
 
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
