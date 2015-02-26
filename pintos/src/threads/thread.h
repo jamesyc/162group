@@ -96,8 +96,8 @@ struct thread
     uint8_t *stack;                     /* Saved stack pointer. */
     int priority;                       /* Priority. */
     struct list_elem allelem;           /* List element for all threads list. */
-    int mlfqs_niceness;                 /* Niceness of thread according to mlfqs */
-    int mlfqs_recentcpu;                /* Recent cpu of thread according to mlfqs */
+    int nice;                           /* Niceness of thread - only for mlfqs */
+    fixed_point_t recent_cpu;           /* Recent cpu of thread - only for mlfqs */
 
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */

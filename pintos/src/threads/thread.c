@@ -14,6 +14,7 @@
 #ifdef USERPROG
 #include "userprog/process.h"
 #endif
+#include "fixed-point.h"
 
 /* Random value for struct thread's `magic' member.
    Used to detect stack overflow.  See the big comment at the top
@@ -27,6 +28,9 @@ static struct list ready_list;
 /* List of all processes.  Processes are added to this list
    when they are first scheduled and removed when they exit. */
 static struct list all_list;
+
+/* Array of priority queues [0-63] for the advanced scheduler. */
+static list *pri_threads[64];
 
 /* Idle thread. */
 static struct thread *idle_thread;
@@ -49,6 +53,8 @@ struct kernel_thread_frame
 static long long idle_ticks;    /* # of timer ticks spent idle. */
 static long long kernel_ticks;  /* # of timer ticks in kernel threads. */
 static long long user_ticks;    /* # of timer ticks in user programs. */
+static fixed_point_t load_avg = 0;
+static int ready_threads;
 
 /* Scheduling. */
 #define TIME_SLICE 4            /* # of timer ticks to give each thread. */
@@ -134,6 +140,23 @@ thread_tick (void)
   else
     kernel_ticks++;
 
+  if (thread_mlfqs) {
+    // Recompute mlfqs statistics
+    // Calculate load average every second
+    ready_threads = //TODO: update # of running/ready to run ! idle threads
+    if (timer_ticks() % TIMER_FREQ == 0) {
+      load_avg = fix_mul(fix_frac(59/60), load_avg);
+      load_avg = fix_add(fix_scale(fix_frac(1, 60), ready_threads), load_avg);
+      //TODO: recent_cpu recalc for all threads
+      t->recent_cpu = //needs to increment by 1 every tick for running thread,
+                      //and recalc formula for all
+    }
+    if (timer_ticks() % 4 == 0) {
+      t->priority = PRI_MAX - (2 * t->nice)
+      t->priority -= fix_round(fix_div(t->recent_cpu, __mk_fix(4)));
+      //TODO: move thread to different priority queue when pri changes
+    }
+  }
   /* Enforce preemption. */
   if (++thread_ticks >= TIME_SLICE)
     intr_yield_on_return ();
@@ -393,7 +416,7 @@ thread_set_nice (int nice)
   ASSERT(nice <= NICE_MAX);
   ASSERT(nice >= NICE_MIN);
 
-  thread_current()->mlfqs_niceness = nice;
+  thread_current()->nice = nice;
   // Need to recalculate thread priority from new niceness value
   int new_priority = 0; // change later to function that finds priority from current thread
   thread_set_priority(new_priority);
@@ -405,7 +428,7 @@ thread_get_nice (void)
 {
   /* Now implemented. */
   ASSERT(thread_mlfqs);
-  return thread_current()->mlfqs_niceness;
+  return thread_current()->nice;
 }
 
 /* Returns 100 times the system load average. */
@@ -413,6 +436,7 @@ int
 thread_get_load_avg (void) 
 {
   /* Not yet implemented. */
+  int load_avg = 
   return 0;
 }
 
@@ -509,8 +533,10 @@ init_thread (struct thread *t, const char *name, int priority)
   t->status = THREAD_BLOCKED;
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
-  t->priority = priority;
+  if (!thread_mlfqs)
+    t->priority = priority;
   t->magic = THREAD_MAGIC;
+  t->recent_cpu = 0; //TODO: gets parent val for new threads besides the first
 
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);
@@ -608,8 +634,12 @@ schedule (void)
   ASSERT (cur->status != THREAD_RUNNING);
   ASSERT (is_thread (next));
 
-  if (cur != next)
-    prev = switch_threads (cur, next);
+  if (thread_mlfqs) {
+    // Find the first nonempty priority queue and schedule first process
+  } else {
+    if (cur != next)
+      prev = switch_threads (cur, next);
+  }
   thread_schedule_tail (prev);
 }
 
