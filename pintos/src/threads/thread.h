@@ -102,7 +102,8 @@ struct thread
     /* Used in the priority donation implementation. */
     struct thread *donee;
     int old_priority;
-    struct list active_locks;
+    struct list holding;
+    struct list waiters;                /* Waiting list for synchronization struct. */
 
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
@@ -137,8 +138,7 @@ const char *thread_name (void);
 
 void thread_exit (void) NO_RETURN;
 void update_ready_queue (void);
-void update_ready_priority (struct thread *t);
-void thread_priority_yield (void);
+void update_queue_position (struct thread *t);
 void thread_yield (void);
 
 /* Performs some operation on thread t, given auxiliary data AUX. */
@@ -153,4 +153,5 @@ void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 
+void print_thread_list (struct list *lst);
 #endif /* threads/thread.h */

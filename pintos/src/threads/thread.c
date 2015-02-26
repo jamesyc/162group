@@ -147,7 +147,7 @@ thread_tick (void)
    into the ready queue in sorted order so that higher-priority
    threads take precedence. */
 bool
-priority_cmp (const struct list_elem *a, const struct list_elem *b, void *aux)
+priority_cmp (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED)
 {
   struct thread *thread_a = list_entry(a, struct thread, elem);
   struct thread *thread_b = list_entry(b, struct thread, elem);
@@ -258,6 +258,7 @@ thread_unblock (struct thread *t)
   ASSERT (t->status == THREAD_BLOCKED);
   list_insert_ordered (&ready_list, &t->elem, (list_less_func *) &priority_cmp, NULL);
   t->status = THREAD_READY;
+
   intr_set_level (old_level);
 }
 
@@ -333,13 +334,19 @@ update_ready_queue (void)
    a thread updates its priority, or when a thread is donated 
    priority from another thread. */
 void
-update_ready_priority (struct thread *t)
+update_queue_position (struct thread *t)
 {
   enum intr_level old_level;
   ASSERT (is_thread (t));
 
   old_level = intr_disable ();
-  list_insert_ordered (&ready_list, list_remove (&t->elem), (list_less_func *) &priority_cmp, NULL);
+
+  if (t->status == THREAD_READY) {
+    list_insert_ordered (&ready_list, list_remove (&t->elem), (list_less_func *) &priority_cmp, NULL);
+  } else if (t->status == THREAD_BLOCKED) {
+    list_insert_ordered (&t->waiters, list_remove (&t->elem), (list_less_func *) &priority_cmp, NULL);
+  }
+  
   intr_set_level (old_level);
 }
 
@@ -517,8 +524,9 @@ init_thread (struct thread *t, const char *name, int priority)
 
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);
+
+  list_init (&t->holding);
   intr_set_level (old_level);
-  list_init (&t->active_locks);
 }
 
 /* Allocates a SIZE-byte frame at the top of thread T's stack and
@@ -630,7 +638,27 @@ allocate_tid (void)
 
   return tid;
 }
-
+
+void
+print_thread_list (struct list *lst)
+{
+  struct list_elem *e;
+
+  enum intr_level old_level = intr_disable ();
+
+  msg ("Printing thread list...");
+  for (e = list_begin (lst); e != list_end (lst);
+       e = list_next (e))
+    {
+      struct thread *t = list_entry (e, struct thread, elem);
+      msg ("Thread %s: Priority %d", t->name, t->priority);
+    }
+
+  intr_set_level (old_level);
+}
+
+
+
 /* Offset of `stack' member within `struct thread'.
    Used by switch.S, which can't figure it out on its own. */
 uint32_t thread_stack_ofs = offsetof (struct thread, stack);
