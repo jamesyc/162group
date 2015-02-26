@@ -341,10 +341,12 @@ update_queue_position (struct thread *t)
 
   old_level = intr_disable ();
 
+  list_remove (&t->elem);
+
   if (t->status == THREAD_READY) {
-    list_insert_ordered (&ready_list, list_remove (&t->elem), (list_less_func *) &priority_cmp, NULL);
+    list_insert_ordered (&ready_list, &t->elem, (list_less_func *) &priority_cmp, NULL);
   } else if (t->status == THREAD_BLOCKED) {
-    list_insert_ordered (&t->waiters, list_remove (&t->elem), (list_less_func *) &priority_cmp, NULL);
+    list_insert_ordered (&t->waiters, &t->elem, (list_less_func *) &priority_cmp, NULL);
   }
   
   intr_set_level (old_level);
