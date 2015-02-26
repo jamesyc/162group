@@ -122,11 +122,22 @@ sema_up (struct semaphore *sema)
 
   old_level = intr_disable ();
   if (!list_empty (&sema->waiters)) {
+    struct list_elem *e;
+    struct thread *max = NULL;
+    //get the thread with the highest priority
+    for (e = list_begin (&sema->waiters); e != list_end (&sema->waiters); e = list_next (e)) {
+      struct thread *t = list_entry (e, struct thread, elem);
+      if ((max==NULL) || max->priority < t->priority) { 
+        max = t; 
+      }
+    }
+    list_remove(&max->elem);  
+    thread_unblock (max);
     // t = list_min (&sema->waiters, (list_less_func *) &priority_cmp, NULL);
     // list_remove (t);
     // thread_unblock (list_entry (t, struct thread, elem));
     // list_sort (&sema->waiters, (list_less_func *) priority_cmp, NULL);
-    thread_unblock (list_entry (list_pop_front (&sema->waiters), struct thread, elem));
+    // thread_unblock (list_entry (list_pop_front (&sema->waiters), struct thread, elem));
   }
   sema->value++;
   intr_set_level (old_level);
@@ -266,36 +277,36 @@ lock_release (struct lock *lock)
   ASSERT (lock != NULL);
   ASSERT (lock_held_by_current_thread (lock));
 
-  // enum intr_level old_level = intr_disable ();
-
+  enum intr_level old_level = intr_disable ();
   struct thread *cur = thread_current();
-
   lock->holder = NULL;
 
-  
-  // int max_priority = cur->old_priority;
+  int max_priority = cur->old_priority;
+  struct list_elem *e;
+  struct list_elem *max_e = list_begin(&cur->holding);
 
-  // struct list_elem *e;
-
-  // for (e = list_begin(&cur->holding); e != list_end(&cur->holding); e = list_next(e)) {
-  //   struct lock *l = list_entry (e, struct lock, elem);
-
-  //   if (!list_empty (&l->semaphore.waiters)) {
-  //     struct thread *donor = list_entry (list_front (&l->semaphore.waiters), struct thread, elem);
-  //     if (donor->priority > max_priority) {
-  //       max_priority = donor->priority;
-  //     }
-  //   }
-  // }
-
+  for (e = list_begin(&cur->holding); e != list_end(&cur->holding); e = list_next(e)) {
+    struct lock *l = list_entry (e, struct lock, elem);
+    if (!list_empty (&l->semaphore.waiters)) {
+      struct thread *donor = list_entry (list_front (&l->semaphore.waiters), struct thread, elem);
+      if (donor->priority > max_priority) {
+        max_priority = donor->priority;
+        max_e = e;
+      }
+    }
+  }
+  if (cur->priority > cur->old_priority) {
+    // cur->priority = cur->old_priority;
+  }
   // cur->priority = max_priority;
   // list_remove (&lock->elem);
+  // list_remove (&max_e);
 
   sema_up (&lock->semaphore);
-  // intr_set_level (old_level);
+  intr_set_level (old_level);
 
   /* Yield if a higher-priority thread is added to the queue. */
-  // thread_yield ();
+  thread_yield ();
 }
 
 /* Returns true if the current thread holds LOCK, false
