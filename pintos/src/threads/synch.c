@@ -252,8 +252,38 @@ lock_release (struct lock *lock)
   ASSERT (lock != NULL);
   ASSERT (lock_held_by_current_thread (lock));
 
+  // need to disable interrupts?
   lock->holder = NULL;
+
+  // loop thru owned locks
+  struct thread *t = thread_current();
+
+  // code for the max
+  int pri_max = t->orig_priority;
+  struct list_elem *e;
+  // ASSUME LIST STRUCTURE FOR ACUIRED LOCKS, I DONT SEE BRANDON'S CODE
+  // see src/lib/kernel/list.c
+  // t->acquired_locks is list of locks, using the list implementation they give us
+  for (e = list_begin (&t->acquired_locks); e != list_end (&t->acquired_locks); e = list_next (e)) 
+  {
+    struct lock *l = list_entry (e, struct lock, elem);
+    if (list_empty (&l->semaphore.waiters)) 
+      continue;
+    struct thread *donor = list_entry (list_front (&l->semaphore.waiters),
+      struct thread, elem);
+    if(donor->priority > pri_max) 
+    {
+      pri_max = donor->priority;
+    }
+  }
+  t->priority = pri_max;
+
+  // remove from locks_list, assuming that exists
+  list_remove (&lock->elem);
+
+
   sema_up (&lock->semaphore);
+  // need to reenable interrupts?
 }
 
 /* Returns true if the current thread holds LOCK, false
