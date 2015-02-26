@@ -136,9 +136,12 @@ struct thread *thread_current (void);
 tid_t thread_tid (void);
 const char *thread_name (void);
 
-void thread_exit (void) NO_RETURN;
-void update_ready_queue (void);
 void update_queue_position (struct thread *t);
+void give_donations (struct thread *t);
+void receive_donation (struct thread *t);
+void update_thread_donations (struct thread *t);
+
+void thread_exit (void) NO_RETURN;
 void thread_yield (void);
 
 /* Performs some operation on thread t, given auxiliary data AUX. */

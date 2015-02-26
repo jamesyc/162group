@@ -220,8 +220,6 @@ timer_interrupt (struct intr_frame *args UNUSED)
     e = list_next (e);
   }
 
-
-
   intr_set_level(old);
 }
 
