@@ -313,29 +313,6 @@ thread_exit (void)
   NOT_REACHED ();
 }
 
-
-/* Updates a thread's position in the ready queue. Used whenever
-   a thread updates its priority, or when a thread is donated 
-   priority from another thread. */
-void
-update_queue_position (struct thread *t)
-{
-  enum intr_level old_level;
-  ASSERT (is_thread (t));
-
-  old_level = intr_disable ();
-
-  list_remove (&t->elem);
-
-  if (t->status == THREAD_READY) {
-    list_insert_ordered (&ready_list, &t->elem, priority_cmp, NULL);
-  } else if (t->status == THREAD_BLOCKED) {
-    list_insert_ordered (&t->waiters, &t->elem, priority_cmp, NULL);
-  }
-  
-  intr_set_level (old_level);
-}
-
 /* Gives a priority donation to a thread's donees, along with its nested
    donees. */
 void
@@ -347,8 +324,6 @@ give_donations (struct thread *t)
   struct thread *recipient = t->donee;
   while (recipient && (recipient->priority < t->priority)) {
     recipient->priority = t->priority;
-
-    update_queue_position(recipient);
     recipient = recipient->donee;
   }
 

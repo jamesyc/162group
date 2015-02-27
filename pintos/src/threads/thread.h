@@ -136,7 +136,6 @@ struct thread *thread_current (void);
 tid_t thread_tid (void);
 const char *thread_name (void);
 
-void update_queue_position (struct thread *t);
 void give_donations (struct thread *t);
 void receive_donation (struct thread *t);
 void update_thread_donations (struct thread *t);
