@@ -106,6 +106,12 @@ struct thread
     struct list_elem asleep_elem;
     int64_t wake_tick;                  /* The tick when the thread should be woken. */
 
+    /* Used in the priority donation implementation. */
+    struct thread *donee;
+    int old_priority;
+    struct list holding;
+    struct list waiters;                /* Waiting list for synchronization struct. */
+
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
@@ -129,6 +135,7 @@ void thread_print_stats (void);
 typedef void thread_func (void *aux);
 tid_t thread_create (const char *name, int priority, thread_func *, void *);
 
+bool priority_cmp (const struct list_elem *a, const struct list_elem *b, void *aux);
 void thread_block (void);
 void thread_unblock (struct thread *);
 
@@ -136,8 +143,12 @@ struct thread *thread_current (void);
 tid_t thread_tid (void);
 const char *thread_name (void);
 
+void update_queue_position (struct thread *t);
+void give_donations (struct thread *t);
+void receive_donation (struct thread *t);
+void update_thread_donations (struct thread *t);
+
 void thread_exit (void) NO_RETURN;
-void thread_priority_yield (void);
 void thread_yield (void);
 
 /* Performs some operation on thread t, given auxiliary data AUX. */
@@ -152,4 +163,5 @@ void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 
+void print_thread_list (struct list *lst);
 #endif /* threads/thread.h */

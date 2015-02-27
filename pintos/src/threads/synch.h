@@ -4,6 +4,8 @@
 #include <list.h>
 #include <stdbool.h>
 
+#define MAX_DONATION_DEPTH = 8;
+
 /* A counting semaphore. */
 struct semaphore 
   {
@@ -20,8 +22,10 @@ void sema_self_test (void);
 /* Lock. */
 struct lock 
   {
-    struct thread *holder;      /* Thread holding lock (for debugging). */
+    struct thread *holder;      /* Thread holding lock. */
     struct semaphore semaphore; /* Binary semaphore controlling access. */
+    struct list_elem elem;
+    struct list_elem holdelem;
   };
 
 void lock_init (struct lock *);
@@ -36,6 +40,7 @@ struct condition
     struct list waiters;        /* List of waiting threads. */
   };
 
+bool cond_cmp (const struct list_elem *a, const struct list_elem *b, void *aux);
 void cond_init (struct condition *);
 void cond_wait (struct condition *, struct lock *);
 void cond_signal (struct condition *, struct lock *);
