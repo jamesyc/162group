@@ -144,10 +144,11 @@ thread_tick (void)
    into the ready queue in sorted order so that higher-priority
    threads take precedence. */
 bool
-priority_cmp (const struct list_elem *a, const struct list_elem *b, void *aux)
+priority_cmp (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED)
 {
   struct thread *thread_a = list_entry(a, struct thread, elem);
   struct thread *thread_b = list_entry(b, struct thread, elem);
+
   return (thread_a->priority > thread_b->priority);
 }
 
@@ -213,8 +214,8 @@ thread_create (const char *name, int priority,
   /* Add to run queue. */
   thread_unblock (t);
 
-  /* Yield when a higher-priority thread is added to the queue. */
-  thread_priority_yield();
+  /* Yield if a higher-priority thread is added to the queue. */
+  thread_yield ();
 
   return tid;
 }
@@ -252,8 +253,9 @@ thread_unblock (struct thread *t)
 
   old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
-  list_insert_ordered (&ready_list, &t->elem, (list_less_func *) &priority_cmp, NULL);
+  list_insert_ordered (&ready_list, &t->elem, priority_cmp, NULL);
   t->status = THREAD_READY;
+
   intr_set_level (old_level);
 }
 
@@ -312,22 +314,77 @@ thread_exit (void)
 }
 
 
-/* Yields the CPU if a thread with a higher priority is added to the 
-   ready list. Should be checked on every thread tick. */
+/* Updates a thread's position in the ready queue. Used whenever
+   a thread updates its priority, or when a thread is donated 
+   priority from another thread. */
 void
-thread_priority_yield (void)
+update_queue_position (struct thread *t)
 {
-  if (list_empty (&ready_list))
-    return;
+  enum intr_level old_level;
+  ASSERT (is_thread (t));
 
-  struct thread *cur = thread_current ();
+  old_level = intr_disable ();
 
-  struct list_elem *e = list_begin (&ready_list);
-  struct thread *t = list_entry (e, struct thread, elem);
+  list_remove (&t->elem);
 
-  if (t->priority > cur->priority) {
-    thread_yield ();
+  if (t->status == THREAD_READY) {
+    list_insert_ordered (&ready_list, &t->elem, priority_cmp, NULL);
+  } else if (t->status == THREAD_BLOCKED) {
+    list_insert_ordered (&t->waiters, &t->elem, priority_cmp, NULL);
   }
+  
+  intr_set_level (old_level);
+}
+
+/* Gives a priority donation to a thread's donees, along with its nested
+   donees. */
+void
+give_donations (struct thread *t) 
+{
+  ASSERT (is_thread (t));
+  enum intr_level old_level = intr_disable ();
+
+  struct thread *recipient = t->donee;
+  while (recipient && (recipient->priority < t->priority)) {
+    recipient->priority = t->priority;
+
+    update_queue_position(recipient);
+    recipient = recipient->donee;
+  }
+
+  intr_set_level (old_level);
+}
+
+/* Updates a thread's priority based on its avaiable donors, or resets
+   it to the original priority if no donors are available. */
+void
+receive_donation (struct thread *t)
+{
+  ASSERT (is_thread (t));
+  enum intr_level old_level = intr_disable ();
+
+  struct list_elem *e;
+  struct thread *donor;
+  struct lock *l;
+  struct list *waiters;
+
+  int donation = t->old_priority;
+
+  for (e = list_begin (&t->holding); e != list_end (&t->holding); e = list_next(e)) {
+    l = list_entry (e, struct lock, holdelem);
+    waiters = &l->semaphore.waiters;
+
+    if (!list_empty (waiters)) {
+      donor = list_entry (list_front (waiters), struct thread, elem);
+
+      if (donor->priority > donation) {
+        donation = donor->priority;
+      }
+    }
+  }
+
+  t->priority = donation;
+  intr_set_level (old_level);
 }
 
 
@@ -343,7 +400,7 @@ thread_yield (void)
 
   old_level = intr_disable ();
   if (cur != idle_thread) 
-    list_insert_ordered (&ready_list, &cur->elem, (list_less_func *) &priority_cmp, NULL);
+    list_insert_ordered (&ready_list, &cur->elem, priority_cmp, NULL);
   cur->status = THREAD_READY;
   schedule ();
   intr_set_level (old_level);
@@ -366,15 +423,29 @@ thread_foreach (thread_action_func *func, void *aux)
     }
 }
 
+
 /* Sets the current thread's priority to NEW_PRIORITY. */
 void
 thread_set_priority (int new_priority) 
 {
-  thread_current ()->priority = new_priority;
+  enum intr_level old_level = intr_disable ();
+
+  struct thread *cur = thread_current ();
+  struct thread *recipient = cur;
+
+  cur->old_priority = new_priority;
+  cur->priority = new_priority;
+
+  while (recipient) {
+    receive_donation (recipient);
+    recipient = recipient->donee;
+  }
+
+  intr_set_level (old_level);
 
   /* If a thread changes its priority, check to see if another thread
      supercedes it. */
-  thread_priority_yield();
+  thread_yield ();
 }
 
 /* Returns the current thread's priority. */
@@ -503,8 +574,13 @@ init_thread (struct thread *t, const char *name, int priority)
   t->priority = priority;
   t->magic = THREAD_MAGIC;
 
+  t->donee = NULL;
+  t->old_priority = t->priority;
+
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);
+
+  list_init (&t->holding);
   intr_set_level (old_level);
 }
 
@@ -617,7 +693,27 @@ allocate_tid (void)
 
   return tid;
 }
-
+
+void
+print_thread_list (struct list *lst)
+{
+  struct list_elem *e;
+
+  enum intr_level old_level = intr_disable ();
+
+  printf ("Printing thread list...\n");
+  for (e = list_begin (lst); e != list_end (lst);
+       e = list_next (e))
+    {
+      struct thread *t = list_entry (e, struct thread, elem);
+      printf ("Thread %s: Priority %d\n", t->name, t->priority);
+    }
+
+  intr_set_level (old_level);
+}
+
+
+
 /* Offset of `stack' member within `struct thread'.
    Used by switch.S, which can't figure it out on its own. */
 uint32_t thread_stack_ofs = offsetof (struct thread, stack);
