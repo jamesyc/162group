@@ -73,7 +73,6 @@ sema_down (struct semaphore *sema)
   while (sema->value == 0) 
     {
       list_push_back (&sema->waiters, &cur->elem);
-      // list_insert_ordered (&sema->waiters, &cur->elem, priority_cmp, NULL);
       thread_block ();
     }
   sema->value--;
@@ -358,7 +357,6 @@ cond_signal (struct condition *cond, struct lock *lock UNUSED)
   ASSERT (lock_held_by_current_thread (lock));
 
   if (!list_empty (&cond->waiters)) {
-    // list_sort (&cond->waiters, cond_cmp, NULL);
     sema_up (&list_entry (list_pop_front (&cond->waiters),
                           struct semaphore_elem, elem)->semaphore);
   }

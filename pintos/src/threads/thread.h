@@ -104,9 +104,6 @@ struct thread
     struct list holding;
     struct lock waiting;
 
-    // struct thread *donee;
-    // struct list waiters;                /* Waiting list for synchronization struct. */
-
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
