@@ -139,6 +139,17 @@ thread_tick (void)
     intr_yield_on_return ();
 }
 
+/* Returns TRUE if the first thread wakes up earlier than the 
+   second thread, otherwise returns FALSE. Used to insert threads 
+   into the list of sleeping processes in sorted order. */
+bool
+tick_cmp (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED)
+{
+  struct thread *thread_a = list_entry(a, struct thread, elem);
+  struct thread *thread_b = list_entry(b, struct thread, elem);
+  return (thread_a->wake_tick < thread_b->wake_tick);
+}
+
 /* Returns TRUE if the first thread has a higher priority than the
    second thread, otherwise returns FALSE. Used to insert threads 
    into the ready queue in sorted order so that higher-priority
@@ -321,10 +332,11 @@ give_donations (struct thread *t)
   ASSERT (is_thread (t));
   enum intr_level old_level = intr_disable ();
 
-  struct thread *recipient = t->donee;
+  struct thread *recipient = t->waiting.holder;
   while (recipient && (recipient->priority < t->priority)) {
     recipient->priority = t->priority;
-    recipient = recipient->donee;
+
+    recipient = recipient->waiting.holder;
   }
 
   intr_set_level (old_level);
@@ -413,7 +425,7 @@ thread_set_priority (int new_priority)
 
   while (recipient) {
     receive_donation (recipient);
-    recipient = recipient->donee;
+    recipient = recipient->waiting.holder;
   }
 
   intr_set_level (old_level);
@@ -548,8 +560,6 @@ init_thread (struct thread *t, const char *name, int priority)
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
   t->magic = THREAD_MAGIC;
-
-  t->donee = NULL;
   t->old_priority = t->priority;
 
   old_level = intr_disable ();

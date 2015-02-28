@@ -92,17 +92,6 @@ timer_elapsed (int64_t then)
   return timer_ticks () - then;
 }
 
-/* Returns TRUE if the first thread wakes up earlier than the 
-   second thread, otherwise returns FALSE. Used to insert threads 
-   into the list of sleeping processes in sorted order. */
-bool
-tick_cmp (const struct list_elem *a, const struct list_elem *b, void *aux)
-{
-  struct thread *thread_a = list_entry(a, struct thread, elem);
-  struct thread *thread_b = list_entry(b, struct thread, elem);
-  return (thread_a->wake_tick < thread_b->wake_tick);
-}
-
 /* Sleeps for approximately TICKS timer ticks.  Interrupts must
    be turned on. */
 void
