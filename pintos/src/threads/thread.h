@@ -100,10 +100,9 @@ struct thread
     int64_t wake_tick;                  /* The tick when the thread should be woken. */
 
     /* Used in the priority donation implementation. */
-    struct thread *donee;
     int old_priority;
     struct list holding;
-    struct list waiters;                /* Waiting list for synchronization struct. */
+    struct lock waiting;
 
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
@@ -128,7 +127,8 @@ void thread_print_stats (void);
 typedef void thread_func (void *aux);
 tid_t thread_create (const char *name, int priority, thread_func *, void *);
 
-bool priority_cmp (const struct list_elem *a, const struct list_elem *b, void *aux);
+bool tick_cmp (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED);
+bool priority_cmp (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED);
 void thread_block (void);
 void thread_unblock (struct thread *);
 
@@ -138,7 +138,6 @@ const char *thread_name (void);
 
 void give_donations (struct thread *t);
 void receive_donation (struct thread *t);
-void update_thread_donations (struct thread *t);
 
 void thread_exit (void) NO_RETURN;
 void thread_yield (void);

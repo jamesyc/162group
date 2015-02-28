@@ -69,7 +69,6 @@ sema_down (struct semaphore *sema)
   old_level = intr_disable ();
 
   struct thread *cur = thread_current ();
-  cur->waiters = sema->waiters;
 
   while (sema->value == 0) 
     {
@@ -211,9 +210,8 @@ lock_acquire (struct lock *lock)
   enum intr_level old_level = intr_disable ();
 
   struct thread *cur = thread_current ();
-  struct thread *donee = lock->holder;
 
-  cur->donee = donee;
+  cur->waiting = *lock;
   give_donations(cur);
 
   sema_down (&lock->semaphore);
@@ -359,7 +357,6 @@ cond_signal (struct condition *cond, struct lock *lock UNUSED)
   ASSERT (lock_held_by_current_thread (lock));
 
   if (!list_empty (&cond->waiters)) {
-    // list_sort (&cond->waiters, cond_cmp, NULL);
     sema_up (&list_entry (list_pop_front (&cond->waiters),
                           struct semaphore_elem, elem)->semaphore);
   }
