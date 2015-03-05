@@ -104,14 +104,14 @@ timer_sleep (int64_t ticks)
 
   /* Synchronously add the current thread to a sorted list of sleeping
      processes. */
-  enum intr_level old = intr_disable();
+  enum intr_level old_level = intr_disable();
   t->wake_tick = start + ticks;
 
-  list_insert_ordered (&asleep_list, &t->asleep_elem, (list_less_func *) &tick_cmp, NULL);
+  list_insert_ordered (&asleep_list, &t->elem, tick_cmp, NULL);
 
   /* Block here until woken up by the timer interrupt. */
   thread_block ();
-  intr_set_level(old);
+  intr_set_level(old_level);
 }
 
 /* Sleeps for approximately MS milliseconds.  Interrupts must be
@@ -189,27 +189,29 @@ static void
 timer_interrupt (struct intr_frame *args UNUSED)
 {
   ticks++;
+
   thread_tick ();
 
   /* Iterate through all the sleeping processes and wake up the
      ones which have expired timers. */
 
   enum intr_level old = intr_disable();
-
   struct list_elem *e = list_begin (&asleep_list);
 
   while (e != list_end (&asleep_list)) {
-    struct thread *t = list_entry (e, struct thread, asleep_elem);
+    struct thread *t = list_entry (e, struct thread, elem);
 
     if (ticks >= t->wake_tick) {
       list_remove (e);
       thread_unblock (t);
+      e = list_begin (&asleep_list);
+    } else {
+      break;
     }
-
-    e = list_next (e);
   }
 
   intr_set_level(old);
+
 }
 
 /* Returns true if LOOPS iterations waits for more than one timer

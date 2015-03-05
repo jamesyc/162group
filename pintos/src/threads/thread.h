@@ -96,7 +96,6 @@ struct thread
     struct list_elem elem;              /* List element. */
 
     /* Used in the alarm clock implementation. */
-    struct list_elem asleep_elem;
     int64_t wake_tick;                  /* The tick when the thread should be woken. */
 
     /* Used in the priority donation implementation. */
