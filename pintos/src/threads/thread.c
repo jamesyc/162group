@@ -97,26 +97,28 @@ thread_init (void)
   lock_init (&tid_lock);
   list_init (&all_list);
 
-  /* Set up a thread structure for the running thread. */
-  initial_thread = running_thread ();
-  init_thread (initial_thread, "main", PRI_DEFAULT);
-  initial_thread->status = THREAD_RUNNING;
-  initial_thread->tid = allocate_tid ();
-
   /* Initialize scheduler resources. */
   if (thread_mlfqs) {
     int p;
     for (p = 0; p < (PRI_MAX - PRI_MIN); p++) {
       list_init (&mlfqs_queues[p]);
     }
+  } else {
+    list_init (&ready_list);
+  }
 
-    /* Initialize advanced scheduler statistics. */
+  /* Set up a thread structure for the running thread. */
+  initial_thread = running_thread ();
+  init_thread (initial_thread, "main", PRI_DEFAULT);
+  initial_thread->status = THREAD_RUNNING;
+  initial_thread->tid = allocate_tid ();
+
+  /* Initialize advanced scheduler statistics. */
+  if (thread_mlfqs) {
     load_avg = fix_int (0);
     initial_thread->recent_cpu = fix_int (0);
     initial_thread->nice = NICE_DEFAULT;
-  } else {
-    list_init (&ready_list);
-  }  
+  }
 }
 
 /* Starts preemptive thread scheduling by enabling interrupts.
@@ -184,6 +186,7 @@ tick_cmp (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED
 {
   struct thread *thread_a = list_entry(a, struct thread, elem);
   struct thread *thread_b = list_entry(b, struct thread, elem);
+
   return (thread_a->wake_tick < thread_b->wake_tick);
 }
 
