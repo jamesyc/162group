@@ -96,8 +96,6 @@ struct thread
     uint8_t *stack;                     /* Saved stack pointer. */
     int priority;                       /* Priority. */
     struct list_elem allelem;           /* List element for all threads list. */
-    int nice;                           /* Niceness of thread - only for mlfqs */
-    fixed_point_t recent_cpu;           /* Recent cpu of thread - only for mlfqs */
 
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
@@ -107,10 +105,13 @@ struct thread
     int64_t wake_tick;                  /* The tick when the thread should be woken. */
 
     /* Used in the priority donation implementation. */
-    struct thread *donee;
     int old_priority;
     struct list holding;
-    struct list waiters;                /* Waiting list for synchronization struct. */
+    struct lock waiting;
+
+    /* Used in the advanced scheduler implementation. */
+    fixed_point_t recent_cpu;           /* Recent cpu of thread - only for mlfqs */
+    int nice;                           /* Niceness of thread - only for mlfqs */
 
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
@@ -135,7 +136,11 @@ void thread_print_stats (void);
 typedef void thread_func (void *aux);
 tid_t thread_create (const char *name, int priority, thread_func *, void *);
 
-bool priority_cmp (const struct list_elem *a, const struct list_elem *b, void *aux);
+bool tick_cmp (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED);
+bool priority_cmp (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED);
+
+void thread_insert_queue (struct thread *);
+struct thread *thread_pop_queue (void);
 void thread_block (void);
 void thread_unblock (struct thread *);
 
@@ -143,10 +148,8 @@ struct thread *thread_current (void);
 tid_t thread_tid (void);
 const char *thread_name (void);
 
-void update_queue_position (struct thread *t);
-void give_donations (struct thread *t);
-void receive_donation (struct thread *t);
-void update_thread_donations (struct thread *t);
+void give_donations (struct thread *);
+void receive_donation (struct thread *);
 
 void thread_exit (void) NO_RETURN;
 void thread_yield (void);
@@ -162,6 +165,12 @@ int thread_get_nice (void);
 void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
+
+void mlfqs_update_priority (struct thread *t, void *aux UNUSED);
+void mlfqs_increment_recent_cpu (struct thread *t);
+void mlfqs_update_recent_cpu (struct thread *t);
+void mlfqs_update_load_avg (void);
+int mlfqs_ready_threads (void);
 
 void print_thread_list (struct list *lst);
 #endif /* threads/thread.h */
