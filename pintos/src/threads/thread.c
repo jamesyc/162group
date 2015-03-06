@@ -54,7 +54,7 @@ static long long idle_ticks;    /* # of timer ticks spent idle. */
 static long long kernel_ticks;  /* # of timer ticks in kernel threads. */
 static long long user_ticks;    /* # of timer ticks in user programs. */
 
-/* Load average variable for MLFQS */
+/* Statistics for use in MLFQS */
 static fixed_point_t load_avg;
 int ready_threads;
 
@@ -160,27 +160,19 @@ thread_tick (void)
 
   if (thread_mlfqs) {
     enum intr_level old_level = intr_disable ();
-	  /* 
-      Increment recent_cpu for the current thread on every tick, unless this
-      is the idle thread.
-    */
+
     if (t != idle_thread)
       mlfqs_increment_recent_cpu (t);
 
-    /* 
-      Update the priority for all threads every fourth tick. 
-       >> Thread priority is calculated initially at thread initialization.
-       >> It is also recalculated every fourth clock tick, for every thread.
-    */
-    if (timer_ticks () % 4 == 0) {
-      // thread_foreach ((thread_action_func *) &mlfqs_update_priority, NULL);
-      // mlfqs_update_priority (t, NULL);
-    }
-
     /* Update load_avg and recent_cpu every second. */
     if (timer_ticks () % TIMER_FREQ == 0) {
-      // thread_foreach ((thread_action_func *) &mlfqs_update_recent_cpu, NULL);
       mlfqs_update_load_avg ();
+      // thread_foreach (mlfqs_update_recent_cpu, NULL)
+    }
+
+    /* Update priority for all threads every fourth tick. */
+    if (timer_ticks () % 4 == 0) {
+      // thread_foreach (mlfqs_update_priority, NULL);
     }
 
     intr_set_level (old_level);
@@ -275,10 +267,9 @@ thread_create (const char *name, int priority,
   sf->eip = switch_entry;
   sf->ebp = 0;
 
-  /* Theads inherit niceness & recent_cpu (and therefore priority)
-     from their parent thread. */
-  t->nice = thread_current ()->nice;
+  /* Theads inherit niceness, recent_cpu, and priority from parent. */
   if (thread_mlfqs) {
+    t->nice = thread_current ()->nice;
     t->recent_cpu = thread_current ()->recent_cpu;
     t->priority = thread_current ()->priority;
   }
@@ -552,7 +543,7 @@ thread_get_recent_cpu (void)
   return fix_round (fix_scale (thread_current ()->recent_cpu, 100));
 }
 
-/* Update the mlfqs priority of a thread. */
+/* Updates the mlfqs priority of a thread. */
 void
 mlfqs_update_priority (struct thread *t, void *aux UNUSED)
 {
@@ -589,9 +580,6 @@ mlfqs_update_recent_cpu (struct thread *t)
   fixed_point_t denom = fix_add (fix_scale (load_avg, 2), fix_int (1));
   fixed_point_t ratio = fix_div (fix_scale (load_avg, 2), denom);
   t->recent_cpu = fix_add (fix_mul (ratio, t->recent_cpu), fix_int (t->nice));
-
-  //TODO: are we supposed to update pri after every recent_cpu update?
-  // mlfqs_update_priority (t, NULL);
 }
 
 /* Updates the global load_avg variable. Should be called once 
@@ -604,22 +592,7 @@ mlfqs_update_load_avg (void)
   int cur_ready = (thread_current () != idle_thread);
   load_avg = fix_mul (fix_frac (59, 60), load_avg);
   load_avg = fix_add (load_avg, fix_frac (ready_threads+cur_ready, 60));
-  /*load_avg = fix_add(load_avg, fix_scale(fix_frac(1, 60),
-                                         mlfqs_ready_threads()));*/
 }
-
-/* Returns the number of running or ready threads. */
-/*int
-mlfqs_ready_threads (void)
-{
-  int threads = 0; //TODO: have global var storing ready_thread count updated
-                   //upon thread queue/dequeue to avoid having to O(n) recount
-  int p;
-  for (p = 0; p < (PRI_MAX - PRI_MIN); p++) {
-    threads += list_size (&mlfqs_queues[p]);
-  }
-  return threads;
-}*/
 
 /* Idle thread.  Executes when no other thread is ready to run.
 
