@@ -53,6 +53,8 @@ struct kernel_thread_frame
 static long long idle_ticks;    /* # of timer ticks spent idle. */
 static long long kernel_ticks;  /* # of timer ticks in kernel threads. */
 static long long user_ticks;    /* # of timer ticks in user programs. */
+
+/* Load average variable for MLFQS */
 static fixed_point_t load_avg;
 int ready_threads;
 
@@ -572,7 +574,9 @@ mlfqs_update_recent_cpu (struct thread *t)
 {
   ASSERT (intr_get_level () == INTR_OFF);
 
-  fixed_point_t ratio = fix_div (fix_scale (load_avg, 2), fix_scale (load_avg, 2));
+  fixed_point_t denom = fix_add (fix_scale (load_avg, 2), fix_int (1));
+  fixed_point_t ratio = fix_div (fix_scale (load_avg, 2), denom);
+
   t->recent_cpu = fix_add (fix_mul (ratio, t->recent_cpu), fix_int (t->nice));
 
   mlfqs_update_priority (t, NULL);
