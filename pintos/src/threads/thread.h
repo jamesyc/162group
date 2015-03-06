@@ -168,7 +168,7 @@ void mlfqs_update_priority (struct thread *t, void *aux UNUSED);
 void mlfqs_update_recent_cpu (struct thread *t, void *aux UNUSED);
 void mlfqs_increment_recent_cpu (struct thread *t);
 void mlfqs_update_load_avg (void);
-// int mlfqs_ready_threads (void);
+int mlfqs_ready_threads (void);
 
 void print_thread_list (struct list *lst);
 #endif /* threads/thread.h */

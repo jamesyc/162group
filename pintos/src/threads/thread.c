@@ -604,9 +604,24 @@ mlfqs_update_load_avg (void)
 {
   ASSERT (intr_get_level () == INTR_OFF);
 
-  int cur_ready = (thread_current () != idle_thread);
+  // int cur_ready = (thread_current () != idle_thread);
+  int ready = mlfqs_ready_threads ();
   load_avg = fix_mul (fix_frac (59, 60), load_avg);
-  load_avg = fix_add (load_avg, fix_frac (ready_threads+cur_ready, 60));
+  // load_avg = fix_add (load_avg, fix_frac (ready_threads+cur_ready, 60));
+  load_avg = fix_add (load_avg, fix_frac (ready, 60));
+}
+
+int
+mlfqs_ready_threads (void)
+{
+  int p;
+  int total = (thread_current () != idle_thread);
+
+  for (p=0; p<=(PRI_MAX-PRI_MIN); p++) {
+    total += list_size (&mlfqs_lists[p]);
+  }
+
+  return total;
 }
 
 /* Idle thread.  Executes when no other thread is ready to run.
