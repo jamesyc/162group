@@ -119,7 +119,7 @@ thread_init (void)
   /* Set default values for advanced scheduler attributes. */
   if (thread_mlfqs) {
     load_avg = fix_int (0);
-    ready_threads = 0;
+    ready_threads = 1;
 
     initial_thread->recent_cpu = fix_int (0);
     initial_thread->nice = NICE_DEFAULT;
@@ -604,24 +604,9 @@ mlfqs_update_load_avg (void)
 {
   ASSERT (intr_get_level () == INTR_OFF);
 
-  // int cur_ready = (thread_current () != idle_thread);
-  int ready = mlfqs_ready_threads ();
+  int cur_ready = (thread_current () != idle_thread);
   load_avg = fix_mul (fix_frac (59, 60), load_avg);
-  // load_avg = fix_add (load_avg, fix_frac (ready_threads+cur_ready, 60));
-  load_avg = fix_add (load_avg, fix_frac (ready, 60));
-}
-
-int
-mlfqs_ready_threads (void)
-{
-  int p;
-  int total = (thread_current () != idle_thread);
-
-  for (p=0; p<=(PRI_MAX-PRI_MIN); p++) {
-    total += list_size (&mlfqs_lists[p]);
-  }
-
-  return total;
+  load_avg = fix_add (load_avg, fix_frac (cur_ready + ready_threads, 60));
 }
 
 /* Idle thread.  Executes when no other thread is ready to run.
