@@ -116,9 +116,11 @@ thread_init (void)
   initial_thread->status = THREAD_RUNNING;
   initial_thread->tid = allocate_tid ();
 
-  /* Initialize advanced scheduler statistics. */
+  /* Set default values for advanced scheduler attributes. */
   if (thread_mlfqs) {
     load_avg = fix_int (0);
+    ready_threads = 0;
+
     initial_thread->recent_cpu = fix_int (0);
     initial_thread->nice = NICE_DEFAULT;
   }
@@ -288,9 +290,9 @@ void
 thread_insert_ready (struct thread *t)
 {
   ASSERT (intr_get_level () == INTR_OFF);
-  ready_threads += 1;
 
   if (thread_mlfqs) {
+    ready_threads++;
     list_push_back (&mlfqs_lists[t->priority - PRI_MIN], &t->elem);
   } else {
     list_insert_ordered (&ready_list, &t->elem, priority_cmp, NULL);
@@ -562,6 +564,7 @@ mlfqs_update_priority (struct thread *t, void *aux UNUSED)
   if (t->status == THREAD_READY) {
     if (new_priority != t->priority) {
       list_remove (&t->elem);
+      ready_threads--;
       thread_insert_ready (t);
     }
   }
@@ -587,8 +590,10 @@ void
 mlfqs_update_recent_cpu (struct thread *t, void *aux UNUSED)
 {
   ASSERT (intr_get_level () == INTR_OFF);
-  fixed_point_t denom = fix_add (fix_scale (load_avg, 2), fix_int (1));
-  fixed_point_t ratio = fix_div (fix_scale (load_avg, 2), denom);
+
+  fixed_point_t numer = fix_scale (load_avg, 2);
+  fixed_point_t ratio = fix_div (numer, fix_add (numer, fix_int (1)));
+
   t->recent_cpu = fix_add (fix_mul (ratio, t->recent_cpu), fix_int (t->nice));
 }
 
@@ -722,7 +727,6 @@ static struct thread *
 next_thread_to_run (void) 
 {
   ASSERT (intr_get_level () == INTR_OFF);
-  ready_threads -= 1;
 
   int p;
 
@@ -732,6 +736,7 @@ next_thread_to_run (void)
       struct list *p_list = &mlfqs_lists[p];
 
       if (!list_empty (p_list)) {
+        ready_threads--;
         return list_entry (list_pop_front (p_list), struct thread, elem);
       }
     }
@@ -741,7 +746,6 @@ next_thread_to_run (void)
     }
   }
 
-  ready_threads = 0;
   return idle_thread;
 }
 
