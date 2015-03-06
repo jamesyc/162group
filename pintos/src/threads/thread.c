@@ -56,7 +56,7 @@ static long long user_ticks;    /* # of timer ticks in user programs. */
 
 /* Statistics for use in MLFQS */
 static fixed_point_t load_avg;
-int ready_threads;
+static int ready_threads;
 
 /* Scheduling. */
 #define TIME_SLICE 4            /* # of timer ticks to give each thread. */
@@ -172,7 +172,7 @@ thread_tick (void)
 
     /* Update priority for all threads every fourth tick. */
     if (timer_ticks () % 4 == 0) {
-      // thread_foreach (mlfqs_update_priority, NULL);
+      thread_foreach (mlfqs_update_priority, NULL);
     }
 
     intr_set_level (old_level);
@@ -519,7 +519,7 @@ thread_set_nice (int nice)
 
   struct thread *cur = thread_current ();
   cur->nice = nice;
-  // mlfqs_update_priority (cur, NULL);
+  mlfqs_update_priority (cur, NULL);
 }
 
 /* Returns the current thread's nice value. */
@@ -548,15 +548,25 @@ void
 mlfqs_update_priority (struct thread *t, void *aux UNUSED)
 {
   enum intr_level old_level = intr_disable ();
+  int new_priority = fix_trunc (fix_sub (
+    fix_int (PRI_MAX - (2 * t->nice)), 
+    fix_unscale (t->recent_cpu, 4)));
 
-  int new_priority = PRI_MAX - (2 * t->nice);
-  new_priority -= fix_round (fix_unscale (t->recent_cpu, 4));
-
-  if (new_priority != t->priority) {
-    list_remove (&t->elem);
-    thread_insert_ready (t);
+  if (new_priority < PRI_MIN) {
+    new_priority = PRI_MIN;
+  } else if (new_priority > PRI_MAX) {
+    new_priority = PRI_MAX;
   }
 
+  /* Move the thread to the correct ready list. */
+  if (t->status == THREAD_READY) {
+    if (new_priority != t->priority) {
+      list_remove (&t->elem);
+      thread_insert_ready (t);
+    }
+  }
+
+  t->priority = new_priority;
   intr_set_level (old_level);
 }
 
