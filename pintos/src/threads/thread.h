@@ -138,8 +138,7 @@ tid_t thread_create (const char *name, int priority, thread_func *, void *);
 bool tick_cmp (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED);
 bool priority_cmp (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED);
 
-void thread_insert_queue (struct thread *);
-struct thread *thread_pop_queue (void);
+void thread_insert_ready (struct thread *);
 void thread_block (void);
 void thread_unblock (struct thread *);
 
@@ -169,7 +168,6 @@ void mlfqs_update_priority (struct thread *t, void *aux UNUSED);
 void mlfqs_increment_recent_cpu (struct thread *t);
 void mlfqs_update_recent_cpu (struct thread *t);
 void mlfqs_update_load_avg (void);
-int mlfqs_ready_threads (void);
 
 void print_thread_list (struct list *lst);
 #endif /* threads/thread.h */
