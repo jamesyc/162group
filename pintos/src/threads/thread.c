@@ -167,7 +167,7 @@ thread_tick (void)
     /* Update load_avg and recent_cpu every second. */
     if (timer_ticks () % TIMER_FREQ == 0) {
       mlfqs_update_load_avg ();
-      // thread_foreach (mlfqs_update_recent_cpu, NULL)
+      thread_foreach (mlfqs_update_recent_cpu, NULL);
     }
 
     /* Update priority for all threads every fourth tick. */
@@ -574,7 +574,7 @@ mlfqs_increment_recent_cpu (struct thread *t)
    for a thread. Should be called once every second for all 
    threads. */
 void
-mlfqs_update_recent_cpu (struct thread *t)
+mlfqs_update_recent_cpu (struct thread *t, void *aux UNUSED)
 {
   ASSERT (intr_get_level () == INTR_OFF);
   fixed_point_t denom = fix_add (fix_scale (load_avg, 2), fix_int (1));
