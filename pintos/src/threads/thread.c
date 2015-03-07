@@ -163,8 +163,8 @@ thread_tick (void)
   if (thread_mlfqs) {
     enum intr_level old_level = intr_disable ();
 
-    if (t != idle_thread) {
-      mlfqs_increment_recent_cpu (t);
+    if (timer_ticks () % TIMER_FREQ == 0) {
+      thread_foreach (mlfqs_update_recent_cpu, NULL);
     }
 
     /* Update priority for all threads every fourth tick. */
@@ -172,9 +172,12 @@ thread_tick (void)
       thread_foreach (mlfqs_update_priority, NULL);
     }
 
+    if (t != idle_thread) {
+      mlfqs_increment_recent_cpu (t);
+    }
+
     /* Update load_avg and recent_cpu every second. */
     if (timer_ticks () % TIMER_FREQ == 0) {
-      thread_foreach (mlfqs_update_recent_cpu, NULL);
       mlfqs_update_load_avg ();
     }
 
