@@ -104,7 +104,7 @@ thread_init (void)
   if (thread_mlfqs) {
     int p;
     for (p = 0; p < (PRI_MAX - PRI_MIN + 1); p++) {
-      list_init (mlfqs_lists+p);
+      list_init (&mlfqs_lists[p]);
     }
   } else {
     list_init (&ready_list);
@@ -119,7 +119,7 @@ thread_init (void)
   /* Set default values for advanced scheduler attributes. */
   if (thread_mlfqs) {
     load_avg = fix_int (0);
-    ready_threads = 1;
+    // ready_threads = 1;
 
     initial_thread->recent_cpu = fix_int (0);
     initial_thread->nice = NICE_DEFAULT;
@@ -167,13 +167,9 @@ thread_tick (void)
       mlfqs_increment_recent_cpu (t);
     }
 
-    /* Update load_avg every second. */
+    /* Update recent_cpu and load_avg every second. */
     if (timer_ticks () % TIMER_FREQ == 0) {
       mlfqs_update_load_avg ();
-    }
-
-    /* Update the recent_cpu of all threads every second. */
-    if (timer_ticks () % TIMER_FREQ == 0) {
       thread_foreach (mlfqs_update_recent_cpu, NULL);
     }
 
@@ -556,28 +552,17 @@ mlfqs_update_priority (struct thread *t, void *aux UNUSED)
 {
   enum intr_level old_level = intr_disable ();
 
-  int old_priority = t->priority;
   int new_priority = fix_trunc (fix_sub (
     fix_int (PRI_MAX - (2 * t->nice)), 
     fix_unscale (t->recent_cpu, 4)));
 
-  if (new_priority < PRI_MIN) {
-    new_priority = PRI_MIN;
-  } else if (new_priority > PRI_MAX) {
+  if (new_priority > PRI_MAX) {
     new_priority = PRI_MAX;
+  } else if (new_priority < PRI_MIN) {
+    new_priority = PRI_MIN;
   }
 
   t->priority = new_priority;
-
-  /* Move the thread to the correct ready list. */
-  if (t->status == THREAD_READY) {
-    if (old_priority != new_priority) {
-      list_remove (&t->elem);
-      ready_threads--;
-      thread_insert_ready (t);
-    }
-  }
-
   intr_set_level (old_level);
 }
 
@@ -769,6 +754,7 @@ next_thread_to_run (void)
     }
   }
 
+  ready_threads = 0;
   return idle_thread;
 }
 
