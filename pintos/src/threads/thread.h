@@ -26,6 +26,11 @@ typedef int tid_t;
 #define PRI_DEFAULT 31                  /* Default priority. */
 #define PRI_MAX 63                      /* Highest priority. */
 
+/* Thread niceness levels. */
+#define NICE_MIN -20                    /* Lowest niceness. */
+#define NICE_DEFAULT 0                  /* Default niceness. */
+#define NICE_MAX 20                     /* Highest niceness. */
+
 /* A kernel thread or user process.
 
    Each thread structure is stored in its own 4 kB page.  The
@@ -103,6 +108,10 @@ struct thread
     struct list holding;
     struct lock waiting;
 
+    /* Used in the advanced scheduler implementation. */
+    fixed_point_t recent_cpu;           /* Recent cpu of thread - only for mlfqs */
+    int nice;                           /* Niceness of thread - only for mlfqs */
+
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
@@ -128,6 +137,8 @@ tid_t thread_create (const char *name, int priority, thread_func *, void *);
 
 bool tick_cmp (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED);
 bool priority_cmp (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED);
+
+void thread_insert_ready (struct thread *);
 void thread_block (void);
 void thread_unblock (struct thread *);
 
@@ -135,8 +146,8 @@ struct thread *thread_current (void);
 tid_t thread_tid (void);
 const char *thread_name (void);
 
-void give_donations (struct thread *t);
-void receive_donation (struct thread *t);
+void give_donations (struct thread *);
+void receive_donation (struct thread *);
 
 void thread_exit (void) NO_RETURN;
 void thread_yield (void);
@@ -152,6 +163,12 @@ int thread_get_nice (void);
 void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
+
+void mlfqs_update_priority (struct thread *t, void *aux UNUSED);
+void mlfqs_update_recent_cpu (struct thread *t, void *aux UNUSED);
+void mlfqs_increment_recent_cpu (struct thread *t);
+void mlfqs_update_load_avg (void);
+int mlfqs_ready_threads (void);
 
 void print_thread_list (struct list *lst);
 #endif /* threads/thread.h */

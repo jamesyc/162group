@@ -211,8 +211,10 @@ lock_acquire (struct lock *lock)
 
   struct thread *cur = thread_current ();
 
-  cur->waiting = *lock;
-  give_donations(cur);
+  if (!thread_mlfqs) {
+    cur->waiting = *lock;
+    give_donations(cur);
+  }
 
   sema_down (&lock->semaphore);
   list_push_back (&cur->holding, &lock->holdelem);
@@ -256,7 +258,11 @@ lock_release (struct lock *lock)
 
   struct thread *cur = thread_current();
   list_remove (&lock->holdelem);
-  receive_donation (cur);
+
+  if (!thread_mlfqs) {
+    receive_donation (cur);
+  }
+  
   intr_set_level (old_level);
 
   lock->holder = NULL;
