@@ -119,8 +119,6 @@ thread_init (void)
   /* Set default values for advanced scheduler attributes. */
   if (thread_mlfqs) {
     load_avg = fix_int (0);
-    // ready_threads = 1;
-
     initial_thread->recent_cpu = fix_int (0);
     initial_thread->nice = NICE_DEFAULT;
   }
@@ -190,7 +188,8 @@ thread_tick (void)
    second thread, otherwise returns FALSE. Used to insert threads 
    into the list of sleeping processes in sorted order. */
 bool
-tick_cmp (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED)
+tick_cmp (const struct list_elem *a, const struct list_elem *b, 
+  void *aux UNUSED)
 {
   struct thread *thread_a = list_entry(a, struct thread, elem);
   struct thread *thread_b = list_entry(b, struct thread, elem);
@@ -203,7 +202,8 @@ tick_cmp (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED
    into the ready queue in sorted order so that higher-priority
    threads take precedence. */
 bool
-priority_cmp (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED)
+priority_cmp (const struct list_elem *a, const struct list_elem *b, 
+  void *aux UNUSED)
 {
   struct thread *thread_a = list_entry(a, struct thread, elem);
   struct thread *thread_b = list_entry(b, struct thread, elem);
@@ -270,11 +270,10 @@ thread_create (const char *name, int priority,
   sf->eip = switch_entry;
   sf->ebp = 0;
 
-  /* Theads inherit niceness, recent_cpu, and priority from parent. */
+  /* Theads inherit niceness and recent_cpu from parent thread. */
   if (thread_mlfqs) {
     t->nice = thread_current ()->nice;
     t->recent_cpu = thread_current ()->recent_cpu;
-    t->priority = thread_current ()->priority;
   }
 
   /* Add to run queue. */
@@ -286,7 +285,8 @@ thread_create (const char *name, int priority,
   return tid;
 }
 
-/* Inserts a thread into the ready queue. */
+/* Inserts a thread into the proper location on the ready queue
+   according to its priority. */
 void
 thread_insert_ready (struct thread *t)
 {
@@ -411,7 +411,7 @@ give_donations (struct thread *t)
   intr_set_level (old_level);
 }
 
-/* Updates a thread's priority based on its avaiable donors, or resets
+/* Updates a thread's priority based on its available donors, or resets
    it to the original priority if no donors are available. */
 void
 receive_donation (struct thread *t)
@@ -426,18 +426,21 @@ receive_donation (struct thread *t)
 
   int donation = t->old_priority;
 
-  for (e = list_begin (&t->holding); e != list_end (&t->holding); e = list_next(e)) {
-    l = list_entry (e, struct lock, holdelem);
-    waiters = &l->semaphore.waiters;
+  /* Iterate through all donors, checking for potential donations. */
+  for (e = list_begin (&t->holding); e != list_end (&t->holding); 
+       e = list_next(e)) 
+    {
+      l = list_entry (e, struct lock, holdelem);
+      waiters = &l->semaphore.waiters;
 
-    if (!list_empty (waiters)) {
-      donor = list_entry (list_front (waiters), struct thread, elem);
+      if (!list_empty (waiters)) {
+        donor = list_entry (list_front (waiters), struct thread, elem);
 
-      if (donor->priority > donation) {
-        donation = donor->priority;
+        if (donor->priority > donation) {
+          donation = donor->priority;
+        }
       }
     }
-  }
 
   t->priority = donation;
   intr_set_level (old_level);
@@ -597,24 +600,9 @@ mlfqs_update_load_avg (void)
 {
   ASSERT (intr_get_level () == INTR_OFF);
 
-  // int ready = mlfqs_ready_threads ();
   int cur_ready = (thread_current () != idle_thread);
   load_avg = fix_mul (fix_frac (59, 60), load_avg);
   load_avg = fix_add (load_avg, fix_frac (cur_ready + ready_threads, 60));
-  // load_avg = fix_add (load_avg, fix_frac (ready, 60));
-}
-
-int
-mlfqs_ready_threads (void)
-{
-  int p;
-  int total = (thread_current () != idle_thread);
-
-  for (p=0; p<=(PRI_MAX-PRI_MIN); p++) {
-    total += list_size (&mlfqs_lists[p]);
-  }
-
-  return total;
 }
 
 /* Idle thread.  Executes when no other thread is ready to run.
@@ -841,26 +829,6 @@ allocate_tid (void)
 
   return tid;
 }
-
-void
-print_thread_list (struct list *lst)
-{
-  struct list_elem *e;
-
-  enum intr_level old_level = intr_disable ();
-
-  printf ("Printing thread list...\n");
-  for (e = list_begin (lst); e != list_end (lst);
-       e = list_next (e))
-    {
-      struct thread *t = list_entry (e, struct thread, elem);
-      printf ("Thread %s: Priority %d\n", t->name, t->priority);
-    }
-
-  intr_set_level (old_level);
-}
-
-
 
 /* Offset of `stack' member within `struct thread'.
    Used by switch.S, which can't figure it out on its own. */

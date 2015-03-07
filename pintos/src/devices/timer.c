@@ -193,8 +193,8 @@ timer_interrupt (struct intr_frame *args UNUSED)
   thread_tick ();
 
   /* Iterate through all the sleeping processes and wake up the
-     ones which have expired timers. */
-
+     ones which have expired timers. Short-circuit if we reach
+     a process which should not be woken up. */
   enum intr_level old = intr_disable();
   struct list_elem *e = list_begin (&asleep_list);
 
