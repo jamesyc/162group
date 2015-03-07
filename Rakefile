@@ -6,7 +6,7 @@
 # reached, or a new project is released.
 
 proj = "proj1"
-checkpoint = "checkpoint2"
+checkpoint = "checkpoint3"
 proj_dir = "pintos/src"
 
 ag_branch = "ag"
