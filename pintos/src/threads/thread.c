@@ -163,6 +163,16 @@ thread_tick (void)
   if (thread_mlfqs) {
     enum intr_level old_level = intr_disable ();
 
+    if (t != idle_thread) {
+      mlfqs_increment_recent_cpu (t);
+    }
+
+    /* Update load_avg every second. */
+    if (timer_ticks () % TIMER_FREQ == 0) {
+      mlfqs_update_load_avg ();
+    }
+
+    /* Update the recent_cpu of all threads every second. */
     if (timer_ticks () % TIMER_FREQ == 0) {
       thread_foreach (mlfqs_update_recent_cpu, NULL);
     }
@@ -170,15 +180,6 @@ thread_tick (void)
     /* Update priority for all threads every fourth tick. */
     if (timer_ticks () % 4 == 0) {
       thread_foreach (mlfqs_update_priority, NULL);
-    }
-
-    if (t != idle_thread) {
-      mlfqs_increment_recent_cpu (t);
-    }
-
-    /* Update load_avg and recent_cpu every second. */
-    if (timer_ticks () % TIMER_FREQ == 0) {
-      mlfqs_update_load_avg ();
     }
 
     intr_set_level (old_level);
@@ -554,6 +555,8 @@ void
 mlfqs_update_priority (struct thread *t, void *aux UNUSED)
 {
   enum intr_level old_level = intr_disable ();
+
+  int old_priority = t->priority;
   int new_priority = fix_trunc (fix_sub (
     fix_int (PRI_MAX - (2 * t->nice)), 
     fix_unscale (t->recent_cpu, 4)));
@@ -564,16 +567,17 @@ mlfqs_update_priority (struct thread *t, void *aux UNUSED)
     new_priority = PRI_MAX;
   }
 
+  t->priority = new_priority;
+
   /* Move the thread to the correct ready list. */
   if (t->status == THREAD_READY) {
-    if (new_priority != t->priority) {
+    if (old_priority != new_priority) {
       list_remove (&t->elem);
       ready_threads--;
       thread_insert_ready (t);
     }
   }
 
-  t->priority = new_priority;
   intr_set_level (old_level);
 }
 
@@ -608,9 +612,24 @@ mlfqs_update_load_avg (void)
 {
   ASSERT (intr_get_level () == INTR_OFF);
 
+  // int ready = mlfqs_ready_threads ();
   int cur_ready = (thread_current () != idle_thread);
   load_avg = fix_mul (fix_frac (59, 60), load_avg);
   load_avg = fix_add (load_avg, fix_frac (cur_ready + ready_threads, 60));
+  // load_avg = fix_add (load_avg, fix_frac (ready, 60));
+}
+
+int
+mlfqs_ready_threads (void)
+{
+  int p;
+  int total = (thread_current () != idle_thread);
+
+  for (p=0; p<=(PRI_MAX-PRI_MIN); p++) {
+    total += list_size (&mlfqs_lists[p]);
+  }
+
+  return total;
 }
 
 /* Idle thread.  Executes when no other thread is ready to run.
