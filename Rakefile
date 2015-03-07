@@ -66,7 +66,7 @@ end
 
 desc "Submit assignment to release"
 task :release, [:proj, :checkpoint, :proj_dir] do |t, args|
-    Rake::Task[:push].invoke("#{release_branch}", args.proj, args.checkpoint, args.proj_dir)
+    Rake::Task[:default].invoke("#{release_branch}", args.proj, args.checkpoint, args.proj_dir)
     puts cyan "Submitted the project! Sit back and relax."
 end
 
