@@ -5,8 +5,8 @@
 # These variables should be updated every time a checkpoint deadline is
 # reached, or a new project is released.
 
-proj = "proj1"
-checkpoint = "checkpoint3"
+proj = "project2"
+checkpoint = "checkpoint1"
 proj_dir = "pintos/src"
 
 ag_branch = "ag"
