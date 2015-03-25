@@ -437,6 +437,8 @@ setup_stack (const char *file_name, void **esp)
   uint8_t *kpage;
   char *token, *save_ptr;
   bool success = false;
+  int arglen;
+  int argc = 0;
 
   kpage = palloc_get_page (PAL_USER | PAL_ZERO);
   if (kpage != NULL) 
@@ -449,26 +451,51 @@ setup_stack (const char *file_name, void **esp)
     }
 
   /* Tokenize the string and push each argument onto the stack. */
-  int arglen;
-  int argc = 0;
   for (token = strtok_r (file_name, " ", &save_ptr); token != NULL; 
        token = strtok_r (NULL, " ", &save_ptr))
-  {
-    arglen = strlen(token) + 1;
-    *esp -= arglen;
-    strlcpy (*esp, token, arglen);
-    // *((char) (*esp + arglen + 1)) = '\0';
+    {
+      arglen = strlen(token) + 1;
+      *esp -= arglen;
 
-    printf ("%s, %d\n", token, strlen (token));
-    argc++;
-  }
+      strlcpy (*esp, token, arglen);
+      argc++;
+    }
 
-  /* Word-align the arguments. */
-  
+  /* Save a pointer to the beginning of the arguments. */
+  save_ptr = (char *) *esp;
+
+  /* Word-align the stack pointer. */
+  uintptr_t esp_addr = (uintptr_t) *esp;
+  *esp = (void *) (esp_addr &= -4);
+
+  /* Push pointers to argument strings onto the stack. */
+  *esp -= sizeof (char *);
+  *((char *) *esp) = 0;
+
+  int i;
+  for (i = 0; i < argc; i++) 
+    {
+      *esp -= sizeof (char *);
+      *((char **) *esp) = save_ptr;
+
+      /* Locate the next string. */
+      save_ptr = strchr (save_ptr, '\0') + 1; 
+    }
+
+  /* Push argv and argc onto the stack. */
+  *esp -= sizeof (char **);
+  *((char ***) *esp) = *esp + sizeof (char **);
+
+  *esp -= sizeof (int);
+  *((int *) *esp) = argc;
+
+  /* Push null return address to the stack. */
+  *esp -= sizeof (void *);
+  *((void **) *esp) = NULL;
 
   /* Debugging. */
-  printf("esp: %p\n", *esp);
-  hex_dump ((int) *esp, *esp, 100, 1);
+  // printf("esp: %p\n", *esp);
+  // hex_dump ((int) *esp, *esp, 200, 1);
 
   return success;
 }
