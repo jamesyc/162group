@@ -200,7 +200,7 @@ struct Elf32_Phdr
 #define PF_W 2          /* Writable. */
 #define PF_R 4          /* Readable. */
 
-static bool setup_stack (void **esp);
+static bool setup_stack (const char *file_name, void **esp);
 static bool validate_segment (const struct Elf32_Phdr *, struct file *);
 static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
                           uint32_t read_bytes, uint32_t zero_bytes,
@@ -225,6 +225,10 @@ load (const char *file_name, void (**eip) (void), void **esp)
   if (t->pagedir == NULL) 
     goto done;
   process_activate ();
+
+  /* Set up stack. */
+  if (!setup_stack (file_name, esp))
+    goto done;
 
   /* Open executable file. */
   file = filesys_open (file_name);
@@ -305,10 +309,6 @@ load (const char *file_name, void (**eip) (void), void **esp)
           break;
         }
     }
-
-  /* Set up stack. */
-  if (!setup_stack (esp))
-    goto done;
 
   /* Start address. */
   *eip = (void (*) (void)) ehdr.e_entry;
@@ -432,9 +432,10 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 /* Create a minimal stack by mapping a zeroed page at the top of
    user virtual memory. */
 static bool
-setup_stack (void **esp) 
+setup_stack (const char *file_name, void **esp) 
 {
   uint8_t *kpage;
+  char *token, *save_ptr;
   bool success = false;
 
   kpage = palloc_get_page (PAL_USER | PAL_ZERO);
@@ -446,6 +447,29 @@ setup_stack (void **esp)
       else
         palloc_free_page (kpage);
     }
+
+  /* Tokenize the string and push each argument onto the stack. */
+  int arglen;
+  int argc = 0;
+  for (token = strtok_r (file_name, " ", &save_ptr); token != NULL; 
+       token = strtok_r (NULL, " ", &save_ptr))
+  {
+    arglen = strlen(token) + 1;
+    *esp -= arglen;
+    strlcpy (*esp, token, arglen);
+    // *((char) (*esp + arglen + 1)) = '\0';
+
+    printf ("%s, %d\n", token, strlen (token));
+    argc++;
+  }
+
+  /* Word-align the arguments. */
+  
+
+  /* Debugging. */
+  printf("esp: %p\n", *esp);
+  hex_dump ((int) *esp, *esp, 100, 1);
+
   return success;
 }
 
