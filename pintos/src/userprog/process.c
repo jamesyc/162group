@@ -457,6 +457,7 @@ setup_stack (char *file_name, void **esp)
         palloc_free_page (kpage);
     }
 
+
   /* Tokenize the string and push each argument onto the stack. */
   for (token = strtok_r (file_name, " ", &save_ptr); token != NULL; 
        token = strtok_r (NULL, " ", &save_ptr))
@@ -472,17 +473,18 @@ setup_stack (char *file_name, void **esp)
   save_ptr = (char *) *esp;
 
   /* Word-align the stack pointer. */
-  uintptr_t esp_addr = (uintptr_t) *esp;
-  *esp = (void *) (esp_addr &= -4);
+  *esp = (void *) ((uintptr_t) *esp & -4);
 
-  /* Push pointers to argument strings onto the stack. */
+  /* Set the last argument of argv to 0. */
   *esp -= sizeof (char *);
   *((char *) *esp) = 0;
 
+  /* Push pointers to argument strings onto the stack. */
   for (i = 0; i < argc; i++) 
     {
       *esp -= sizeof (char *);
       *((char **) *esp) = save_ptr;
+      
       save_ptr = strchr (save_ptr, '\0') + 1; 
     }
 
@@ -493,7 +495,7 @@ setup_stack (char *file_name, void **esp)
   *esp -= sizeof (int);
   *((int *) *esp) = argc;
 
-  /* Push null return address to the stack. */
+  /* Push dummy (null) return address to the stack. */
   *esp -= sizeof (void *);
   *((void **) *esp) = NULL;
 
