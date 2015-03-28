@@ -451,53 +451,53 @@ setup_stack (char *file_name, void **esp)
   if (kpage != NULL) 
     {
       success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
-      if (success)
+      if (success && strlen (file_name) < PGSIZE) {
         *esp = PHYS_BASE;
-      else
+
+        /* Tokenize the string and push each argument onto the stack. */
+        for (token = strtok_r (file_name, " ", &save_ptr); token != NULL; 
+             token = strtok_r (NULL, " ", &save_ptr))
+          {
+            arglen = strlen(token) + 1;
+            *esp -= arglen * sizeof (char);
+
+            strlcpy (*esp, token, arglen);
+            argc++;
+          }
+
+        /* Save a pointer to the beginning of the arguments. */
+        save_ptr = (char *) *esp;
+
+        /* Word-align the stack pointer. */
+        *esp = (void *) ((uintptr_t) *esp & -4);
+
+        /* Set the last argument of argv to 0. */
+        *esp -= sizeof (char *);
+        *((char *) *esp) = 0;
+
+        /* Push pointers to argument strings onto the stack. */
+        for (i = 0; i < argc; i++) 
+          {
+            *esp -= sizeof (char *);
+            *((char **) *esp) = save_ptr;
+            
+            save_ptr = strchr (save_ptr, '\0') + 1; 
+          }
+
+        /* Push argv and argc onto the stack. */
+        *esp -= sizeof (char **);
+        *((char ***) *esp) = *esp + sizeof (char **);
+
+        *esp -= sizeof (int);
+        *((int *) *esp) = argc;
+
+        /* Push dummy (null) return address to the stack. */
+        *esp -= sizeof (void *);
+        *((void **) *esp) = NULL;
+      } else {
         palloc_free_page (kpage);
+      }
     }
-
-
-  /* Tokenize the string and push each argument onto the stack. */
-  for (token = strtok_r (file_name, " ", &save_ptr); token != NULL; 
-       token = strtok_r (NULL, " ", &save_ptr))
-    {
-      arglen = strlen(token) + 1;
-      *esp -= arglen * sizeof (char);
-
-      strlcpy (*esp, token, arglen);
-      argc++;
-    }
-
-  /* Save a pointer to the beginning of the arguments. */
-  save_ptr = (char *) *esp;
-
-  /* Word-align the stack pointer. */
-  *esp = (void *) ((uintptr_t) *esp & -4);
-
-  /* Set the last argument of argv to 0. */
-  *esp -= sizeof (char *);
-  *((char *) *esp) = 0;
-
-  /* Push pointers to argument strings onto the stack. */
-  for (i = 0; i < argc; i++) 
-    {
-      *esp -= sizeof (char *);
-      *((char **) *esp) = save_ptr;
-      
-      save_ptr = strchr (save_ptr, '\0') + 1; 
-    }
-
-  /* Push argv and argc onto the stack. */
-  *esp -= sizeof (char **);
-  *((char ***) *esp) = *esp + sizeof (char **);
-
-  *esp -= sizeof (int);
-  *((int *) *esp) = argc;
-
-  /* Push dummy (null) return address to the stack. */
-  *esp -= sizeof (void *);
-  *((void **) *esp) = NULL;
 
   return success;
 }
