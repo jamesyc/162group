@@ -5,6 +5,7 @@
 #include "devices/shutdown.h"
 #include "threads/interrupt.h"
 #include "threads/thread.h"
+#include "userprog/process.h"
 
 static void syscall_handler (struct intr_frame *);
 
@@ -57,6 +58,9 @@ void
 syscall_exec (uint32_t *args, uint32_t *retval)
 {
     const char *cmd_line = (char *) args[1];
+    
+    pid_t new_proc = process_execute (cmd_line);
+    *retval = new_proc;
 }
 
 void
@@ -67,13 +71,9 @@ syscall_write (uint32_t *args, uint32_t *retval)
     size_t size = (size_t) args[3];
 
     size_t write_len = strnlen (buffer, size);
-    size_t written;
-
-    for (written = 0; written < write_len; written++) {
-        printf("%c", *(buffer+written));
-    }
-
-    *retval = written;
+    printf("%.*s", write_len, buffer);
+    
+    *retval = write_len;
 }
 
 void
