@@ -10,6 +10,7 @@ typedef void (*syscall_fun_t) (uint32_t *args, uint32_t *retval);
 void syscall_halt (uint32_t *args, uint32_t *retval);
 void syscall_exit (uint32_t *args, uint32_t *retval);
 void syscall_exec (uint32_t *args, uint32_t *retval);
+void syscall_wait (uint32_t *args, uint32_t *retval);
 void syscall_write (uint32_t *args, uint32_t *retval);
 void syscall_null (uint32_t *args, uint32_t *retval);
 

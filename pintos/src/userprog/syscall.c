@@ -22,6 +22,7 @@ syscall_init (void)
   syscall_list[SYS_HALT] = syscall_halt;
   syscall_list[SYS_EXIT] = syscall_exit;
   syscall_list[SYS_EXEC] = syscall_exec;
+  syscall_list[SYS_WAIT] = syscall_wait;
   syscall_list[SYS_WRITE] = syscall_write;
   syscall_list[SYS_WAIT] = syscall_wait;
   syscall_list[SYS_NULL] = syscall_null;
@@ -68,8 +69,7 @@ syscall_exec (uint32_t *args, uint32_t *retval)
 {
     const char *cmd_line = (char *) args[1];
     
-    pid_t new_proc = process_execute (cmd_line);
-    *retval = new_proc;
+    *retval = process_execute (cmd_line);
 }
 
 void
