@@ -20,7 +20,6 @@
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 
-static struct semaphore temporary;
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
 
@@ -145,6 +144,10 @@ process_exit (void)
     }
   
   struct wait_status *ws = cur->wait_status;
+
+  /* Copy the exit code to the shared struct. */
+  ws->exit_code = 42;
+
   sema_up (&ws->dead);
 
   /* Decrement ref_count in all children. */

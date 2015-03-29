@@ -58,18 +58,17 @@ syscall_exit (uint32_t *args, uint32_t *retval)
 }
 
 void
+syscall_exec (uint32_t *args, uint32_t *retval)
+{
+    const char *cmd_line = (char *) args[1];
+    *retval = process_execute (cmd_line);
+}
+
+void
 syscall_wait (uint32_t *args, uint32_t *retval)
 {
     tid_t child = args[1];
     *retval = process_wait (child);
-}
-
-void
-syscall_exec (uint32_t *args, uint32_t *retval)
-{
-    const char *cmd_line = (char *) args[1];
-    
-    *retval = process_execute (cmd_line);
 }
 
 void
