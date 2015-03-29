@@ -3,8 +3,10 @@
 #include <stdio.h>
 #include <string.h>
 #include <syscall-nr.h>
+#include "devices/shutdown.h"
 #include "threads/interrupt.h"
 #include "threads/thread.h"
+#include "userprog/process.h"
 
 static void syscall_handler (struct intr_frame *);
 
@@ -17,7 +19,9 @@ void
 syscall_init (void) 
 {
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
+  syscall_list[SYS_HALT] = syscall_halt;
   syscall_list[SYS_EXIT] = syscall_exit;
+  syscall_list[SYS_EXEC] = syscall_exec;
   syscall_list[SYS_WRITE] = syscall_write;
   syscall_list[SYS_WAIT] = syscall_wait;
   syscall_list[SYS_NULL] = syscall_null;
@@ -30,23 +34,25 @@ syscall_handler (struct intr_frame *f UNUSED)
   syscall_list[args[0]](args, &f->eax);
 }
 
+
+/* Syscall implementations. */
+
 void
-syscall_exit (uint32_t *args, uint32_t *eax)
+syscall_halt (uint32_t *args UNUSED, uint32_t *retval UNUSED)
 {
-    char procname[15];
+    shutdown_power_off ();
+}
 
-    /* Get the process name without arguments. */
+void
+syscall_exit (uint32_t *args, uint32_t *retval)
+{
+    /* Print the process name without arguments. */
     struct thread *t = thread_current ();
-    strlcpy (procname, t->name, 15);
+    char *name_end = strchr(t->name, ' ');
 
-    char *pn_end = strchr(procname, ' ');
-    if (pn_end) {
-        *pn_end = '\0';
-    }
-
-    printf("%s: exit(%d)\n", procname, args[1]);
+    printf("%.*s: exit(%d)\n", name_end-t->name, t->name, args[1]);
     
-    *eax = args[1];
+    *retval = args[1];
     thread_exit();
 }
 
@@ -58,26 +64,31 @@ syscall_wait (uint32_t *args, uint32_t *retval)
 }
 
 void
-syscall_write (uint32_t *args, uint32_t *eax)
+syscall_exec (uint32_t *args, uint32_t *retval)
+{
+    const char *cmd_line = (char *) args[1];
+    
+    pid_t new_proc = process_execute (cmd_line);
+    *retval = new_proc;
+}
+
+void
+syscall_write (uint32_t *args, uint32_t *retval)
 {
     int fd = (int) args[1];
     const char *buffer = (char *) args[2];
     size_t size = (size_t) args[3];
 
     size_t write_len = strnlen (buffer, size);
-    size_t written;
-
-    for (written = 0; written < write_len; written++) {
-        printf("%c", *(buffer+written));
-    }
-
-    *eax = written;
+    printf("%.*s", write_len, buffer);
+    
+    *retval = write_len;
 }
 
 void
-syscall_null(uint32_t *args, uint32_t *eax)
+syscall_null(uint32_t *args, uint32_t *retval)
 {
-    *eax = args[1] + 1;
+    *retval = args[1] + 1;
 }
 
 
