@@ -14,6 +14,7 @@
 #include "threads/flags.h"
 #include "threads/init.h"
 #include "threads/interrupt.h"
+#include "threads/malloc.h"
 #include "threads/palloc.h"
 #include "threads/synch.h"
 #include "threads/thread.h"
@@ -33,7 +34,6 @@ process_execute (const char *file_name)
   char *fn_copy;
   tid_t tid;
 
-  sema_init (&temporary, 0);
   /* Make a copy of FILE_NAME.
      Otherwise there's a race between the caller and load(). */
   fn_copy = palloc_get_page (0);
@@ -91,8 +91,33 @@ start_process (void *file_name_)
 int
 process_wait (tid_t child_tid) 
 {
-  sema_down (&temporary);
-  return 0;
+  struct thread *parent = thread_current ();
+  struct wait_status *waiting = NULL;
+
+  /* Find the child by its tid. */
+  struct list_elem *e = list_begin (&parent->children);
+  while (e != list_end (&parent->children)) {
+    struct wait_status *ws = list_entry (e, struct wait_status, elem);
+    if (ws->tid == child_tid) {
+      waiting = ws;
+      break;
+    }
+    e = list_next (e);
+  }
+
+  /* Error if the child process is not a child of the calling process. */
+  if (!waiting) {
+    return -1;
+  }
+
+  sema_down (&waiting->dead);
+  int exit_code = waiting->exit_code;
+
+  /* Free and remove the structure. */
+  list_remove (&waiting->elem);
+  free (waiting);
+
+  return exit_code;
 }
 
 /* Free the current process's resources. */
@@ -118,7 +143,32 @@ process_exit (void)
       pagedir_activate (NULL);
       pagedir_destroy (pd);
     }
-  sema_up (&temporary);
+  
+  struct wait_status *ws = cur->wait_status;
+  sema_up (&ws->dead);
+
+  /* Decrement ref_count in all children. */
+  struct list_elem *e = list_begin (&cur->children);
+
+  while (e != list_end (&cur->children)) {
+    struct wait_status *cws = list_entry (e, struct wait_status, elem);
+
+    lock_acquire (&cws->lock);
+    cws->ref_count -= 1;
+    lock_release (&cws->lock);
+
+    e = list_next (e);
+  }
+
+  /* Decrement the ref_count for parent process. */
+  lock_acquire (&ws->lock);
+  
+  ws->ref_count -= 1;
+  if (ws->ref_count == 0) {
+    free (ws);
+  }
+
+  lock_release (&ws->lock);
 }
 
 /* Sets up the CPU for running user code in the current

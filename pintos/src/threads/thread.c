@@ -193,9 +193,10 @@ thread_create (const char *name, int priority,
 
   /* Set initial values of the shared struct. */
   ws->tid = tid;
-  ws->ref_cnt = 2;
+  ws->ref_count = 2;
   ws->exit_code = 0;
-  sema_init (&ws->dead, 1);
+  lock_init (&ws->lock);
+  sema_init (&ws->dead, 0);
 
   /* Stack frame for kernel_thread(). */
   kf = alloc_frame (t, sizeof *kf);

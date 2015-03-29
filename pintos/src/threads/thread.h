@@ -111,13 +111,13 @@ struct thread
 struct wait_status
   {
     tid_t tid;                          /* Child thread tid. */
-    int ref_cnt;                        /* How many of parent+child alive. */
+    int ref_count;                        /* How many of parent+child alive. */
 
     struct list_elem elem;              /* List element for children. */
     struct lock lock;                   /* Protects ref_cnt. */
 
     int exit_code;                      /* Child exit code. */
-    struct semaphore dead;              /* 0 if child dead, 1 if alive. */
+    struct semaphore dead;              /* 0 if child alive, 1 if dead. */
   };
 
 /* If false (default), use round-robin scheduler.

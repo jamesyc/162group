@@ -1,4 +1,5 @@
 #include "userprog/syscall.h"
+#include "userprog/process.h"
 #include <stdio.h>
 #include <string.h>
 #include <syscall-nr.h>
@@ -53,6 +54,7 @@ void
 syscall_wait (uint32_t *args, uint32_t *retval)
 {
     tid_t child = args[1];
+    *retval = process_wait (child);
 }
 
 void
