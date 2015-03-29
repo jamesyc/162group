@@ -18,6 +18,7 @@ syscall_init (void)
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
   syscall_list[SYS_EXIT] = syscall_exit;
   syscall_list[SYS_WRITE] = syscall_write;
+  syscall_list[SYS_WAIT] = syscall_wait;
   syscall_list[SYS_NULL] = syscall_null;
 }
 
@@ -46,6 +47,12 @@ syscall_exit (uint32_t *args, uint32_t *eax)
     
     *eax = args[1];
     thread_exit();
+}
+
+void
+syscall_wait (uint32_t *args, uint32_t *retval)
+{
+    tid_t child = args[1];
 }
 
 void

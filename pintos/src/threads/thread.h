@@ -102,6 +102,22 @@ struct thread
 
     /* Owned by thread.c. */
     unsigned magic;                     /* Detects stack overflow. */
+
+    /* Used in syscall-wait implementation. */
+    struct wait_status *wait_status;
+    struct list children;
+  };
+
+struct wait_status
+  {
+    tid_t tid;                          /* Child thread tid. */
+    int ref_cnt;                        /* How many of parent+child alive. */
+
+    struct list_elem elem;              /* List element for children. */
+    struct lock lock;                   /* Protects ref_cnt. */
+
+    int exit_code;                      /* Child exit code. */
+    struct semaphore dead;              /* 0 if child dead, 1 if alive. */
   };
 
 /* If false (default), use round-robin scheduler.
