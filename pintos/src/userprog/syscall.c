@@ -1,52 +1,74 @@
 #include "userprog/syscall.h"
 #include <stdio.h>
+#include <string.h>
 #include <syscall-nr.h>
 #include "threads/interrupt.h"
 #include "threads/thread.h"
 
-static uint32_t (*syscall_list[SYS_NULL]) (uint32_t *);
 static void syscall_handler (struct intr_frame *);
-static uint32_t exit_func (uint32_t *);
-static uint32_t null_func (uint32_t *);
-static uint32_t write_func (uint32_t *);
+
+
+/* Syscall structs. */
+syscall_fun_t syscall_list[SYS_NULL+1];
+
 
 void
 syscall_init (void) 
 {
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
-  syscall_list[SYS_EXIT] = &exit_func;
-  syscall_list[SYS_NULL] = &null_func;
-  syscall_list[SYS_WRITE] = &write_func;
+  syscall_list[SYS_EXIT] = syscall_exit;
+  syscall_list[SYS_WRITE] = syscall_write;
+  syscall_list[SYS_NULL] = syscall_null;
 }
 
 static void
 syscall_handler (struct intr_frame *f UNUSED) 
 {
   uint32_t* args = ((uint32_t*) f->esp);
-  f->eax = syscall_list[args[0]] (args);
+  syscall_list[args[0]](args, &f->eax);
 }
 
-static uint32_t
-exit_func (uint32_t *args) {
-  char *name = thread_current()->name;
-  char *i = name;
-  while (*i != NULL) {
-    if (*i == ' ')
-      *i = '\0';
-    i++;
-  }
-  printf("%s: exit(%d)\n", name, args[1]);
-  thread_exit();
-  return args[1];
+void
+syscall_exit (uint32_t *args, uint32_t *eax)
+{
+    char procname[15];
+
+    /* Get the process name without arguments. */
+    struct thread *t = thread_current ();
+    strlcpy (procname, t->name, 15);
+
+    char *pn_end = strchr(procname, ' ');
+    if (pn_end) {
+        *pn_end = '\0';
+    }
+
+    printf("%s: exit(%d)\n", procname, args[1]);
+    
+    *eax = args[1];
+    thread_exit();
 }
 
-static uint32_t
-null_func (uint32_t *args) {
-  return args[1] + 1;
+void
+syscall_write (uint32_t *args, uint32_t *eax)
+{
+    int fd = (int) args[1];
+    const char *buffer = (char *) args[2];
+    size_t size = (size_t) args[3];
+
+    size_t write_len = strnlen (buffer, size);
+    size_t written;
+
+    for (written = 0; written < write_len; written++) {
+        printf("%c", *(buffer+written));
+    }
+
+    *eax = written;
 }
 
-static uint32_t
-write_func (uint32_t *args) {
-  printf("%s", (char*) args[2]);
-  return args[3];
+void
+syscall_null(uint32_t *args, uint32_t *eax)
+{
+    *eax = args[1] + 1;
 }
+
+
