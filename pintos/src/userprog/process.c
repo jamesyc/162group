@@ -66,7 +66,7 @@ start_process (void *file_name_)
   /* If load failed, quit. */
   palloc_free_page (file_name);
   if (!success) 
-    thread_exit ();
+    thread_exit (-1);
 
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
@@ -121,7 +121,7 @@ process_wait (tid_t child_tid)
 
 /* Free the current process's resources. */
 void
-process_exit (void)
+process_exit (int exit_code)
 {
   struct thread *cur = thread_current ();
   uint32_t *pd;
@@ -146,7 +146,7 @@ process_exit (void)
   struct wait_status *ws = cur->wait_status;
 
   /* Copy the exit code to the shared struct. */
-  ws->exit_code = 42;
+  ws->exit_code = exit_code;
 
   sema_up (&ws->dead);
 

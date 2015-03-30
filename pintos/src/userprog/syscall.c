@@ -54,7 +54,7 @@ syscall_exit (uint32_t *args, uint32_t *retval)
     printf("%.*s: exit(%d)\n", name_end-t->name, t->name, args[1]);
     
     *retval = args[1];
-    thread_exit();
+    thread_exit (args[1]);
 }
 
 void
