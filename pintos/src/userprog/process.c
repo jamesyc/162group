@@ -63,6 +63,8 @@ start_process (void *file_name_)
   if_.eflags = FLAG_IF | FLAG_MBS;
   success = load (file_name, &if_.eip, &if_.esp);
 
+  /* TODO: Add synchronization so parent thread wakes up here. */
+
   /* If load failed, quit. */
   palloc_free_page (file_name);
   if (!success) 
@@ -373,6 +375,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
   /* Start address. */
   *eip = (void (*) (void)) ehdr.e_entry;
 
+  palloc_free_page (fn_copy);
   success = true;
 
  done:
