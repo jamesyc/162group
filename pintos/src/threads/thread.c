@@ -186,7 +186,12 @@ thread_create (const char *name, int priority,
 
   struct thread *parent = thread_current ();
 
-  /* Initialize shared struct between parent and child. */
+  /* Initialize shared structs between parent and child. */
+  struct load_status *ls = malloc (sizeof (struct load_status));
+  sema_init (&ls->loaded, 0);
+  parent->exec_status = ls;
+  t->load_status = ls;
+
   struct wait_status *ws = malloc (sizeof (struct wait_status));
   list_push_back (&parent->children, &ws->elem);
   t->wait_status = ws;

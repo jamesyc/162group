@@ -44,6 +44,15 @@ process_execute (const char *file_name)
   tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy);
+
+  struct thread *t = thread_current ();
+  sema_down (&t->exec_status->loaded);
+
+  if (!t->exec_status->success)
+    tid = TID_ERROR;
+
+  free (t->exec_status);
+
   return tid;
 }
 
@@ -63,7 +72,10 @@ start_process (void *file_name_)
   if_.eflags = FLAG_IF | FLAG_MBS;
   success = load (file_name, &if_.eip, &if_.esp);
 
-  /* TODO: Add synchronization so parent thread wakes up here. */
+  /* Wake the parent thread up on load completion. */
+  struct load_status *ls = thread_current ()->load_status;
+  ls->success = success;
+  sema_up (&ls->loaded);
 
   /* If load failed, quit. */
   palloc_free_page (file_name);
