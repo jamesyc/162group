@@ -24,7 +24,6 @@ syscall_init (void)
   syscall_list[SYS_EXEC] = syscall_exec;
   syscall_list[SYS_WAIT] = syscall_wait;
   syscall_list[SYS_WRITE] = syscall_write;
-  syscall_list[SYS_WAIT] = syscall_wait;
   syscall_list[SYS_NULL] = syscall_null;
 }
 
