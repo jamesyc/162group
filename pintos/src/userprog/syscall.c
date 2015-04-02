@@ -30,63 +30,61 @@ syscall_init (void)
 static void
 syscall_handler (struct intr_frame *f UNUSED) 
 {
-  uint32_t* args = ((uint32_t*) f->esp);
-  syscall_list[args[0]](args, &f->eax);
+    uint32_t* args = ((uint32_t*) f->esp);
+    f->eax = syscall_list[args[0]](args+1);
 }
 
 
 /* Syscall implementations. */
 
-void
-syscall_halt (uint32_t *args UNUSED, uint32_t *retval UNUSED)
+uint32_t
+syscall_halt (uint32_t *args UNUSED)
 {
     shutdown_power_off ();
 }
 
-void
-syscall_exit (uint32_t *args, uint32_t *retval)
+uint32_t
+syscall_exit (uint32_t *args)
 {
     /* Print the process name without arguments. */
     struct thread *t = thread_current ();
     char *name_end = strchr(t->name, ' ');
 
-    printf("%.*s: exit(%d)\n", name_end-t->name, t->name, args[1]);
-    
-    *retval = args[1];
-    thread_exit (args[1]);
+    printf("%.*s: exit(%d)\n", name_end-t->name, t->name, args[0]);
+    thread_exit (args[0]);
 }
 
-void
-syscall_exec (uint32_t *args, uint32_t *retval)
+uint32_t
+syscall_exec (uint32_t *args)
 {
-    const char *cmd_line = (char *) args[1];
-    *retval = process_execute (cmd_line);
+    const char *cmd_line = (char *) args[0];
+    return process_execute (cmd_line);
 }
 
-void
-syscall_wait (uint32_t *args, uint32_t *retval)
+uint32_t
+syscall_wait (uint32_t *args)
 {
-    tid_t child = args[1];
-    *retval = process_wait (child);
+    tid_t child = args[0];
+    return process_wait (child);
 }
 
-void
-syscall_write (uint32_t *args, uint32_t *retval)
+uint32_t
+syscall_write (uint32_t *args)
 {
-    int fd = (int) args[1];
-    const char *buffer = (char *) args[2];
-    size_t size = (size_t) args[3];
+    int fd = (int) args[0];
+    const char *buffer = (char *) args[1];
+    size_t size = (size_t) args[2];
 
     size_t write_len = strnlen (buffer, size);
     printf("%.*s", write_len, buffer);
     
-    *retval = write_len;
+    return write_len;
 }
 
-void
-syscall_null(uint32_t *args, uint32_t *retval)
+uint32_t
+syscall_null(uint32_t *args)
 {
-    *retval = args[1] + 1;
+    return args[0] + 1;
 }
 
 
