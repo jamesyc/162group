@@ -6,6 +6,7 @@
 #include "threads/pte.h"
 #include "threads/palloc.h"
 #include "threads/thread.h"
+#include <stdio.h>
 
 static uint32_t *active_pd (void);
 static void invalidate_pagedir (uint32_t *);
@@ -263,69 +264,20 @@ invalidate_pagedir (uint32_t *pd)
     } 
 }
  
-/* Returns a pointer to physical memory if the supplied address:
- *  - is above PHYS_BASE, i.e. not kernel virtual memory
- *  - is not null
- *  - is not unmapped user virtual memory
- * and NULL otherwise.
- */
-static void *
-vuaddr_to_paddr (void *uaddr) {
-  if (!uaddr || !is_user_vaddr(uaddr)) {
-    return NULL;
-  }
-  return lookup_page(active_pd(), uaddr, false);
-}
-
 /* This function quits the thread if the supplied pointer is invalid, and
  * returns the supplied pointer if it isn't.
  */
 void *
 check_ptr(void *uaddr) {
-  void *ret = vuaddr_to_paddr(uaddr);
-  struct thread *t = thread_current();
   char *name_end;
-  if (ret) {
-    return ret;
-  } else {
-    printf("invalid ptr\n");
-    pagedir_destroy(active_pd());
+  struct thread *t = thread_current();
+
+  if (!uaddr || !is_user_vaddr(uaddr) ||
+      !lookup_page(active_pd(), uaddr, false)) {
     name_end = strchr(t->name, ' ');
-    printf("%s: exit(%d)\n", name_end-t->name, t->name, -1);
+    printf("%.*s: exit(%d)\n", name_end-t->name, t->name, -1);
     thread_exit(-1);
-  }
-}
-
-/* This function reads a byte of user memory at the pointer location
- * provided, given that the pointer is valid. This means it
- * meets the following conditions:
- *  - address is above PHYS_BASE, i.e. not kernel virtual memory
- *  - address is not null
- *  - address is not unmapped user virtual memory
- */
-int
-get_user_mem (uint8_t *uaddr) {
-  void *kvaddr = vuaddr_to_paddr(uaddr);
-  if (kvaddr) {
-    return *((int*) kvaddr);
   } else {
-    //Need to free locks and malloc'd memory if there is a page fault
-    pagedir_destroy(active_pd());
-    thread_exit(-1);
-  }
-}
-
-/* This function stores a byte of user memory at the pointer provided, 
- * with the same validity checks as get_user_mem.
- */
-void
-set_user_mem (uint8_t *dstaddr, uint8_t byte) {
-  void *kvaddr = vuaddr_to_paddr(dstaddr);
-  if (kvaddr) {
-    *((uint8_t*) kvaddr) = byte;
-  } else {
-    //Need to free locks and malloc'd memory if there is a page fault
-    pagedir_destroy(active_pd());
-    thread_exit(-1);
+    return uaddr;
   }
 }

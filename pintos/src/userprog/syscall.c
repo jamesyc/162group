@@ -7,6 +7,7 @@
 #include "threads/interrupt.h"
 #include "threads/thread.h"
 #include "userprog/process.h"
+#include "pagedir.h"
 
 static void syscall_handler (struct intr_frame *);
 
@@ -30,7 +31,7 @@ syscall_init (void)
 static void
 syscall_handler (struct intr_frame *f UNUSED) 
 {
-    uint32_t* args = ((uint32_t*) f->esp);
+    uint32_t* args = (uint32_t*) check_ptr((void *) f->esp);
     f->eax = syscall_list[args[0]](args+1);
 }
 
@@ -57,7 +58,7 @@ syscall_exit (uint32_t *args)
 uint32_t
 syscall_exec (uint32_t *args)
 {
-    const char *cmd_line = (char *) args[0];
+    const char *cmd_line = (char *) check_ptr((void *) args[0]);
     return process_execute (cmd_line);
 }
 
@@ -72,7 +73,7 @@ uint32_t
 syscall_write (uint32_t *args)
 {
     int fd = (int) args[0];
-    const char *buffer = (char *) args[1];
+    const char *buffer = (char *) check_ptr((void *) args[1]);
     size_t size = (size_t) args[2];
 
     size_t write_len = strnlen (buffer, size);
