@@ -7,6 +7,7 @@
 #include "threads/flags.h"
 #include "threads/interrupt.h"
 #include "threads/intr-stubs.h"
+#include "threads/malloc.h"
 #include "threads/palloc.h"
 #include "threads/switch.h"
 #include "threads/synch.h"
@@ -183,6 +184,25 @@ thread_create (const char *name, int priority,
   init_thread (t, name, priority);
   tid = t->tid = allocate_tid ();
 
+  struct thread *parent = thread_current ();
+
+  /* Initialize shared structs between parent and child. */
+  struct load_status *ls = malloc (sizeof (struct load_status));
+  sema_init (&ls->loaded, 0);
+  parent->exec_status = ls;
+  t->load_status = ls;
+
+  struct wait_status *ws = malloc (sizeof (struct wait_status));
+  list_push_back (&parent->children, &ws->elem);
+  t->wait_status = ws;
+
+  /* Set initial values of the shared struct. */
+  ws->tid = tid;
+  ws->ref_count = 2;
+  ws->exit_code = 0;
+  lock_init (&ws->lock);
+  sema_init (&ws->dead, 0);
+
   /* Stack frame for kernel_thread(). */
   kf = alloc_frame (t, sizeof *kf);
   kf->eip = NULL;
@@ -278,12 +298,12 @@ thread_tid (void)
 /* Deschedules the current thread and destroys it.  Never
    returns to the caller. */
 void
-thread_exit (void) 
+thread_exit (int exit_code) 
 {
   ASSERT (!intr_context ());
 
 #ifdef USERPROG
-  process_exit ();
+  process_exit (exit_code);
 #endif
 
   /* Remove thread from all threads list, set our status to dying,
@@ -422,7 +442,7 @@ kernel_thread (thread_func *function, void *aux)
 
   intr_enable ();       /* The scheduler runs with interrupts off. */
   function (aux);       /* Execute the thread function. */
-  thread_exit ();       /* If function() returns, kill the thread. */
+  thread_exit (0);       /* If function() returns, kill the thread. */
 }
 
 /* Returns the running thread. */
@@ -465,6 +485,7 @@ init_thread (struct thread *t, const char *name, int priority)
   t->magic = THREAD_MAGIC;
 
   old_level = intr_disable ();
+  list_init (&t->children);
   list_push_back (&all_list, &t->allelem);
   intr_set_level (old_level);
 }

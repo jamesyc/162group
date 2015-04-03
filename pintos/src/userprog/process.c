@@ -14,12 +14,12 @@
 #include "threads/flags.h"
 #include "threads/init.h"
 #include "threads/interrupt.h"
+#include "threads/malloc.h"
 #include "threads/palloc.h"
 #include "threads/synch.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 
-static struct semaphore temporary;
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
 
@@ -33,7 +33,6 @@ process_execute (const char *file_name)
   char *fn_copy;
   tid_t tid;
 
-  sema_init (&temporary, 0);
   /* Make a copy of FILE_NAME.
      Otherwise there's a race between the caller and load(). */
   fn_copy = palloc_get_page (0);
@@ -44,7 +43,16 @@ process_execute (const char *file_name)
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
   if (tid == TID_ERROR)
-    palloc_free_page (fn_copy); 
+    palloc_free_page (fn_copy);
+
+  struct thread *t = thread_current ();
+  sema_down (&t->exec_status->loaded);
+
+  if (!t->exec_status->success)
+    tid = TID_ERROR;
+
+  free (t->exec_status);
+
   return tid;
 }
 
@@ -64,10 +72,15 @@ start_process (void *file_name_)
   if_.eflags = FLAG_IF | FLAG_MBS;
   success = load (file_name, &if_.eip, &if_.esp);
 
+  /* Wake the parent thread up on load completion. */
+  struct load_status *ls = thread_current ()->load_status;
+  ls->success = success;
+  sema_up (&ls->loaded);
+
   /* If load failed, quit. */
   palloc_free_page (file_name);
   if (!success) 
-    thread_exit ();
+    thread_exit (-1);
 
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
@@ -89,15 +102,40 @@ start_process (void *file_name_)
    This function will be implemented in problem 2-2.  For now, it
    does nothing. */
 int
-process_wait (tid_t child_tid UNUSED) 
+process_wait (tid_t child_tid) 
 {
-  sema_down (&temporary);
-  return 0;
+  struct thread *parent = thread_current ();
+  struct wait_status *waiting = NULL;
+
+  /* Find the child by its tid. */
+  struct list_elem *e = list_begin (&parent->children);
+  while (e != list_end (&parent->children)) {
+    struct wait_status *ws = list_entry (e, struct wait_status, elem);
+    if (ws->tid == child_tid) {
+      waiting = ws;
+      break;
+    }
+    e = list_next (e);
+  }
+
+  /* Error if the child process is not a child of the calling process. */
+  if (!waiting) {
+    return -1;
+  }
+
+  sema_down (&waiting->dead);
+  int exit_code = waiting->exit_code;
+
+  /* Free and remove the structure. */
+  list_remove (&waiting->elem);
+  free (waiting);
+
+  return exit_code;
 }
 
 /* Free the current process's resources. */
 void
-process_exit (void)
+process_exit (int exit_code)
 {
   struct thread *cur = thread_current ();
   uint32_t *pd;
@@ -118,7 +156,36 @@ process_exit (void)
       pagedir_activate (NULL);
       pagedir_destroy (pd);
     }
-  sema_up (&temporary);
+  
+  struct wait_status *ws = cur->wait_status;
+
+  /* Copy the exit code to the shared struct. */
+  ws->exit_code = exit_code;
+
+  sema_up (&ws->dead);
+
+  /* Decrement ref_count in all children. */
+  struct list_elem *e = list_begin (&cur->children);
+
+  while (e != list_end (&cur->children)) {
+    struct wait_status *cws = list_entry (e, struct wait_status, elem);
+
+    lock_acquire (&cws->lock);
+    cws->ref_count -= 1;
+    lock_release (&cws->lock);
+
+    e = list_next (e);
+  }
+
+  /* Decrement the ref_count for parent process. */
+  lock_acquire (&ws->lock);
+  
+  ws->ref_count -= 1;
+  if (ws->ref_count == 0) {
+    free (ws);
+  }
+
+  lock_release (&ws->lock);
 }
 
 /* Sets up the CPU for running user code in the current
@@ -320,6 +387,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
   /* Start address. */
   *eip = (void (*) (void)) ehdr.e_entry;
 
+  palloc_free_page (fn_copy);
   success = true;
 
  done:

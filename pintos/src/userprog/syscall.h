@@ -5,10 +5,13 @@
 
 void syscall_init (void);
 
-typedef void (*syscall_fun_t) (uint32_t *args, uint32_t *eax);
+typedef uint32_t (*syscall_fun_t) (uint32_t *args);
 
-void syscall_exit (uint32_t *args, uint32_t *eax);
-void syscall_write (uint32_t *args, uint32_t *eax);
-void syscall_null (uint32_t *args, uint32_t *eax);
+uint32_t syscall_halt (uint32_t *args);
+uint32_t syscall_exit (uint32_t *args);
+uint32_t syscall_exec (uint32_t *args);
+uint32_t syscall_wait (uint32_t *args);
+uint32_t syscall_write (uint32_t *args);
+uint32_t syscall_null (uint32_t *args);
 
 #endif /* userprog/syscall.h */

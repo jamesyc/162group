@@ -1,9 +1,12 @@
 #include "userprog/syscall.h"
+#include "userprog/process.h"
 #include <stdio.h>
 #include <string.h>
 #include <syscall-nr.h>
+#include "devices/shutdown.h"
 #include "threads/interrupt.h"
 #include "threads/thread.h"
+#include "userprog/process.h"
 
 static void syscall_handler (struct intr_frame *);
 
@@ -16,7 +19,10 @@ void
 syscall_init (void) 
 {
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
+  syscall_list[SYS_HALT] = syscall_halt;
   syscall_list[SYS_EXIT] = syscall_exit;
+  syscall_list[SYS_EXEC] = syscall_exec;
+  syscall_list[SYS_WAIT] = syscall_wait;
   syscall_list[SYS_WRITE] = syscall_write;
   syscall_list[SYS_NULL] = syscall_null;
 }
@@ -24,51 +30,61 @@ syscall_init (void)
 static void
 syscall_handler (struct intr_frame *f UNUSED) 
 {
-  uint32_t* args = ((uint32_t*) f->esp);
-  syscall_list[args[0]](args, &f->eax);
+    uint32_t* args = ((uint32_t*) f->esp);
+    f->eax = syscall_list[args[0]](args+1);
 }
 
-void
-syscall_exit (uint32_t *args, uint32_t *eax)
-{
-    char procname[15];
 
-    /* Get the process name without arguments. */
+/* Syscall implementations. */
+
+uint32_t
+syscall_halt (uint32_t *args UNUSED)
+{
+    shutdown_power_off ();
+}
+
+uint32_t
+syscall_exit (uint32_t *args)
+{
+    /* Print the process name without arguments. */
     struct thread *t = thread_current ();
-    strlcpy (procname, t->name, 15);
+    char *name_end = strchr(t->name, ' ');
 
-    char *pn_end = strchr(procname, ' ');
-    if (pn_end) {
-        *pn_end = '\0';
-    }
-
-    printf("%s: exit(%d)\n", procname, args[1]);
-    
-    *eax = args[1];
-    thread_exit();
+    printf("%.*s: exit(%d)\n", name_end-t->name, t->name, args[0]);
+    thread_exit (args[0]);
 }
 
-void
-syscall_write (uint32_t *args, uint32_t *eax)
+uint32_t
+syscall_exec (uint32_t *args)
 {
-    int fd = (int) args[1];
-    const char *buffer = (char *) args[2];
-    size_t size = (size_t) args[3];
+    const char *cmd_line = (char *) args[0];
+    return process_execute (cmd_line);
+}
+
+uint32_t
+syscall_wait (uint32_t *args)
+{
+    tid_t child = args[0];
+    return process_wait (child);
+}
+
+uint32_t
+syscall_write (uint32_t *args)
+{
+    int fd = (int) args[0];
+    const char *buffer = (char *) args[1];
+    size_t size = (size_t) args[2];
 
     size_t write_len = strnlen (buffer, size);
-    size_t written;
-
-    for (written = 0; written < write_len; written++) {
-        printf("%c", *(buffer+written));
-    }
-
-    *eax = written;
+    printf("%.*s", write_len, buffer);
+    
+    return write_len;
 }
 
-void
-syscall_null(uint32_t *args, uint32_t *eax)
+uint32_t
+syscall_null(uint32_t *args)
 {
-    *eax = args[1] + 1;
+    return args[0] + 1;
 }
 
 

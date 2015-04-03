@@ -102,6 +102,30 @@ struct thread
 
     /* Owned by thread.c. */
     unsigned magic;                     /* Detects stack overflow. */
+
+    /* Used in syscall-wait implementation. */
+    struct load_status *exec_status;
+    struct load_status *load_status;
+
+    struct wait_status *wait_status;
+    struct list children;
+  };
+
+struct load_status
+  {
+    int success;
+    struct semaphore loaded;
+  };
+
+struct wait_status
+  {
+    tid_t tid;                          /* Child thread tid. */
+    int ref_count;                      /* How many of parent+child alive. */
+    int exit_code;                      /* Child exit code. */
+
+    struct list_elem elem;              /* List element for children. */
+    struct lock lock;                   /* Protects ref_count. */
+    struct semaphore dead;              /* Incremented if child dies. */
   };
 
 /* If false (default), use round-robin scheduler.
@@ -125,7 +149,7 @@ struct thread *thread_current (void);
 tid_t thread_tid (void);
 const char *thread_name (void);
 
-void thread_exit (void) NO_RETURN;
+void thread_exit (int exit_code) NO_RETURN;
 void thread_yield (void);
 
 /* Performs some operation on thread t, given auxiliary data AUX. */
