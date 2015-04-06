@@ -82,16 +82,17 @@ syscall_write (uint32_t *args)
 {
     /* Declare arguments. */
     int fd = args[0];
-    const void *buffer = args[1];
+    const void *buffer = check_ptr((void *) args[1]);
     unsigned length = args[2];
+    int checklen = (int) length; //Cast to signed int so can break on < 0
 
 
     size_t size = (size_t) length;
     const void *bufptr = buffer;
 
     if (pg_round_down(buffer) != pg_round_down(buffer + length)) {
-        while (length--)
-            check_ptr(bufptr++);
+        while ((checklen -= PGSIZE) > 0)
+            check_ptr(bufptr += PGSIZE);
     }
 
     size_t write_len = strnlen (buffer, size);
