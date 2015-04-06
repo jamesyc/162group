@@ -10,37 +10,31 @@
 #include "userprog/process.h"
 #include "pagedir.h"
 
-typedef int pid_t;
-
 static void syscall_handler (struct intr_frame *);
-void halt (void);
-void exit (int status);
-pid_t exec (const char *file);
-int wait (pid_t);
-/*bool create (const char *file, unsigned initial_size);
-bool remove (const char *file);
-int open (const char *file);
-int filesize (int fd);
-int read (int fd, void *buffer, unsigned length);*/
-int write (int fd, const void *buffer, unsigned length);
-/*void seek (int fd, unsigned position);
-unsigned tell (int fd);
-void close (int fd);*/
-int null (int i);
+
 
 /* Syscall structs. */
 syscall_fun_t syscall_list[SYS_NULL+1];
 
+
 void
 syscall_init (void) 
 {
-  intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
-  syscall_list[SYS_HALT] = syscall_halt;
-  syscall_list[SYS_EXIT] = syscall_exit;
-  syscall_list[SYS_EXEC] = syscall_exec;
-  syscall_list[SYS_WAIT] = syscall_wait;
-  syscall_list[SYS_WRITE] = syscall_write;
-  syscall_list[SYS_NULL] = syscall_null;
+    intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
+    syscall_list[SYS_HALT] = syscall_halt;
+    syscall_list[SYS_EXIT] = syscall_exit;
+    syscall_list[SYS_EXEC] = syscall_exec;
+    syscall_list[SYS_WAIT] = syscall_wait;
+    // syscall_list[SYS_CREATE] = syscall_create;
+    // syscall_list[SYS_REMOVE] = syscall_remove;
+    // syscall_list[SYS_OPEN] = syscall_open;
+    // syscall_list[SYS_FILESIZE] = syscall_filesize;
+    // syscall_list[SYS_READ] = syscall_read;
+    syscall_list[SYS_WRITE] = syscall_write;
+    // syscall_list[SYS_SEEK] = syscall_seek;
+    // syscall_list[SYS_TELL] = syscall_tell;
+    // syscall_list[SYS_CLOSE] = syscall_close;
+    syscall_list[SYS_NULL] = syscall_null;
 }
 
 void
@@ -56,104 +50,42 @@ syscall_handler (struct intr_frame *f UNUSED)
 uint32_t
 syscall_halt (uint32_t *args UNUSED)
 {
-    halt();
+    shutdown_power_off ();
 }
 
 uint32_t
 syscall_exit (uint32_t *args)
 {
-    exit(args[0]);
+    int status = args[0];
+    thread_exit (status);
 }
 
 uint32_t
 syscall_exec (uint32_t *args)
 {
-    return exec((char *) args[0]);
+    const char *file = (char *) args[0];
+
+    const char *cmd_line = (const char *) check_ptr(file);
+    return process_execute (cmd_line);
 }
 
 uint32_t
 syscall_wait (uint32_t *args)
 {
-    return wait((pid_t) args[0]);
+    tid_t pid = args[0];
+
+    return process_wait (pid);
 }
 
 uint32_t
 syscall_write (uint32_t *args)
 {
-    return write((int) args[0], (void *) args[1], (size_t) args[2]);
-}
+    /* Declare arguments. */
+    int fd = args[0];
+    const void *buffer = args[1];
+    unsigned length = args[2];
 
-uint32_t
-syscall_null (uint32_t *args)
-{
-    return null(args[0]);
-}
 
-/* Syscall implementations */
-
-void
-halt (void)
-{
-    shutdown_power_off ();
-}
-
-void
-exit (int status)
-{
-    /* Print the process name without arguments. */
-    struct thread *t = thread_current ();
-    char *name_end = strchr(t->name, ' ');
-
-    printf("%.*s: exit(%d)\n", name_end-t->name, t->name, status);
-    thread_exit (status);
-}
-
-pid_t
-exec (const char *file)
-{
-    const char *cmd_line = (const char *) check_ptr(file);
-    return process_execute (cmd_line);
-}
-
-int
-wait (pid_t pid)
-{
-    return process_wait ((tid_t) pid); /*pid of child*/
-}
-
-/*bool
-create (const char *file, unsigned initial_size)
-{
-    return NULL;
-}
-
-bool
-remove (const char *file)
-{
-    return NULL;
-}
-
-int
-open (const char *file)
-{
-    return NULL;
-}
-
-int
-filesize (int fd)
-{
-    return NULL;
-}
-
-int
-read (int fd, void *buffer, unsigned length)
-{
-    return NULL;
-}*/
-
-int
-write (int fd, const void *buffer, unsigned length)
-{
     size_t size = (size_t) length;
     const void *bufptr = buffer;
 
@@ -168,26 +100,11 @@ write (int fd, const void *buffer, unsigned length)
     return write_len;
 }
 
-/*void
-seek (int fd, unsigned position)
+uint32_t
+syscall_null (uint32_t *args)
 {
-    
-}
-
-unsigned
-tell (int fd)
-{
-    return NULL;
-}
-
-void
-close (int fd)
-{
-    
-}*/
-
-int
-null (int i)
-{
+    int i = args[0];
     return i + 1;
 }
+
+

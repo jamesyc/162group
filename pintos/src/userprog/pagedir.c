@@ -271,8 +271,10 @@ const void *
 check_ptr(const void *uaddr) {
   if (!uaddr || !is_user_vaddr(uaddr) ||
       !lookup_page(active_pd(), uaddr, false)) {
-    exit(-1);
+    thread_exit (-1);
   } else {
     return uaddr;
   }
 }
+
+

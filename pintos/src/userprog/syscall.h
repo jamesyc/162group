@@ -3,6 +3,8 @@
 
 #include <stdint.h>
 
+typedef int pid_t;
+
 void syscall_init (void);
 
 typedef uint32_t (*syscall_fun_t) (uint32_t *args);

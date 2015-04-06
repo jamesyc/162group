@@ -186,6 +186,10 @@ process_exit (int exit_code)
   }
 
   lock_release (&ws->lock);
+
+  /* TODO: Rewrite this using the write syscall. */
+  char *name_end = strchr(cur->name, ' ');
+  printf("%.*s: exit(%d)\n", name_end-cur->name, cur->name, exit_code);
 }
 
 /* Sets up the CPU for running user code in the current
