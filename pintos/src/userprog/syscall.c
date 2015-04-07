@@ -73,29 +73,25 @@ uint32_t
 syscall_wait (uint32_t *args)
 {
     tid_t pid = args[0];
-
     return process_wait (pid);
 }
 
 uint32_t
 syscall_write (uint32_t *args)
 {
-    /* Declare arguments. */
-    int fd = args[0];
-    const void *buffer = check_ptr((void *) args[1]);
+    /* Unwrap arguments. */
+    int fd UNUSED = args[0];
+    const char *buffer = (const char *) args[1];
     unsigned length = args[2];
-    int checklen = (int) length; //Cast to signed int so can break on < 0
 
-
-    size_t size = (size_t) length;
-    const void *bufptr = buffer;
-
-    if (pg_round_down(buffer) != pg_round_down(buffer + length)) {
-        while ((checklen -= PGSIZE) > 0)
-            check_ptr(bufptr += PGSIZE);
+    /* Check that all pages are user-readable. */
+    const char *bufptr = buffer;
+    while (bufptr <= (buffer + length)) {
+        check_ptr (bufptr);
+        bufptr += PGSIZE;
     }
 
-    size_t write_len = strnlen (buffer, size);
+    size_t write_len = strnlen (buffer, length);
     printf("%.*s", write_len, (char *) buffer);
     
     return write_len;
