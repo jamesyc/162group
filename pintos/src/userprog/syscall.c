@@ -6,7 +6,9 @@
 #include "devices/shutdown.h"
 #include "threads/interrupt.h"
 #include "threads/thread.h"
+#include "threads/vaddr.h"
 #include "userprog/process.h"
+#include "pagedir.h"
 
 static void syscall_handler (struct intr_frame *);
 
@@ -18,24 +20,32 @@ syscall_fun_t syscall_list[SYS_NULL+1];
 void
 syscall_init (void) 
 {
-  intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
-  syscall_list[SYS_HALT] = syscall_halt;
-  syscall_list[SYS_EXIT] = syscall_exit;
-  syscall_list[SYS_EXEC] = syscall_exec;
-  syscall_list[SYS_WAIT] = syscall_wait;
-  syscall_list[SYS_WRITE] = syscall_write;
-  syscall_list[SYS_NULL] = syscall_null;
+    intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
+    syscall_list[SYS_HALT] = syscall_halt;
+    syscall_list[SYS_EXIT] = syscall_exit;
+    syscall_list[SYS_EXEC] = syscall_exec;
+    syscall_list[SYS_WAIT] = syscall_wait;
+    // syscall_list[SYS_CREATE] = syscall_create;
+    // syscall_list[SYS_REMOVE] = syscall_remove;
+    // syscall_list[SYS_OPEN] = syscall_open;
+    // syscall_list[SYS_FILESIZE] = syscall_filesize;
+    // syscall_list[SYS_READ] = syscall_read;
+    syscall_list[SYS_WRITE] = syscall_write;
+    // syscall_list[SYS_SEEK] = syscall_seek;
+    // syscall_list[SYS_TELL] = syscall_tell;
+    // syscall_list[SYS_CLOSE] = syscall_close;
+    syscall_list[SYS_NULL] = syscall_null;
 }
 
-static void
+void
 syscall_handler (struct intr_frame *f UNUSED) 
 {
-    uint32_t* args = ((uint32_t*) f->esp);
+    uint32_t* args = (uint32_t*) check_ptr((void *) f->esp);
     f->eax = syscall_list[args[0]](args+1);
 }
 
 
-/* Syscall implementations. */
+/* Syscall dispatch functions */
 
 uint32_t
 syscall_halt (uint32_t *args UNUSED)
@@ -46,45 +56,52 @@ syscall_halt (uint32_t *args UNUSED)
 uint32_t
 syscall_exit (uint32_t *args)
 {
-    /* Print the process name without arguments. */
-    struct thread *t = thread_current ();
-    char *name_end = strchr(t->name, ' ');
-
-    printf("%.*s: exit(%d)\n", name_end-t->name, t->name, args[0]);
-    thread_exit (args[0]);
+    int status = args[0];
+    thread_exit (status);
 }
 
 uint32_t
 syscall_exec (uint32_t *args)
 {
-    const char *cmd_line = (char *) args[0];
+    const char *file = (char *) args[0];
+
+    const char *cmd_line = (const char *) check_ptr(file);
     return process_execute (cmd_line);
 }
 
 uint32_t
 syscall_wait (uint32_t *args)
 {
-    tid_t child = args[0];
-    return process_wait (child);
+    tid_t pid = args[0];
+    return process_wait (pid);
 }
 
 uint32_t
 syscall_write (uint32_t *args)
 {
-    int fd = (int) args[0];
-    const char *buffer = (char *) args[1];
-    size_t size = (size_t) args[2];
+    /* Unwrap arguments. */
+    int fd UNUSED = args[0];
+    const char *buffer = (const char *) args[1];
+    unsigned length = args[2];
 
-    size_t write_len = strnlen (buffer, size);
-    printf("%.*s", write_len, buffer);
+    /* Check that all pages are user-readable. */
+    const char *bufptr = buffer;
+    while (bufptr <= (buffer + length)) {
+        check_ptr (bufptr);
+        bufptr += PGSIZE;
+    }
+
+    size_t write_len = strnlen (buffer, length);
+    printf("%.*s", write_len, (char *) buffer);
     
     return write_len;
 }
 
 uint32_t
-syscall_null(uint32_t *args)
+syscall_null (uint32_t *args)
 {
-    return args[0] + 1;
+    int i = args[0];
+    return i + 1;
 }
 
 

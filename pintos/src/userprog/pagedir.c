@@ -5,6 +5,8 @@
 #include "threads/init.h"
 #include "threads/pte.h"
 #include "threads/palloc.h"
+#include "threads/thread.h"
+#include "userprog/syscall.h"
 
 static uint32_t *active_pd (void);
 static void invalidate_pagedir (uint32_t *);
@@ -261,3 +263,18 @@ invalidate_pagedir (uint32_t *pd)
       pagedir_activate (pd);
     } 
 }
+ 
+/* This function quits the thread if the supplied pointer is invalid, and
+ * returns the supplied pointer if it isn't.
+ */
+const void *
+check_ptr(const void *uaddr) {
+  if (!uaddr || !is_user_vaddr(uaddr) ||
+      !lookup_page(active_pd(), uaddr, false)) {
+    thread_exit (-1);
+  } else {
+    return uaddr;
+  }
+}
+
+
