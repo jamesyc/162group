@@ -9,6 +9,22 @@
 #include "threads/vaddr.h"
 #include "userprog/process.h"
 #include "pagedir.h"
+static int syscall_argnum[SYS_NULL+1] = { 
+    0 /* SYS_HALT */,
+    1 /* SYS_EXIT */,
+    1 /* SYS_EXEC */,
+    1 /* SYS_WAIT */,
+    2 /* SYS_CREATE */,
+    1 /* SYS_REMOVE */,
+    1 /* SYS_OPEN */,
+    1 /* SYS_FILESIZE */,
+    3 /* SYS_READ */,
+    3 /* SYS_WRITE */,
+    2 /* SYS_SEEK */,
+    1 /* SYS_TELL */,
+    1 /* SYS_CLOSE */,
+    1 /* SYS_NULL */
+};
 
 static void syscall_handler (struct intr_frame *);
 
@@ -41,6 +57,12 @@ void
 syscall_handler (struct intr_frame *f UNUSED) 
 {
     uint32_t* args = (uint32_t*) check_ptr((void *) f->esp);
+
+    int i;
+    for (i = 0; i < syscall_argnum[args[0]]; i++) {
+        check_ptr(&args[i+1]);
+    }
+
     f->eax = syscall_list[args[0]](args+1);
 }
 
