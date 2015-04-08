@@ -6,11 +6,14 @@
 #include "devices/shutdown.h"
 #include "threads/interrupt.h"
 #include "threads/thread.h"
+#include "threads/synch.h"
 #include "threads/vaddr.h"
 #include "userprog/process.h"
 #include "pagedir.h"
+#include "filesys/filesys.h"
 
 static void syscall_handler (struct intr_frame *);
+static struct lock filesys_lock;
 
 
 /* Syscall structs. */
@@ -20,13 +23,14 @@ syscall_fun_t syscall_list[SYS_NULL+1];
 void
 syscall_init (void) 
 {
+    lock_init(&filesys_lock);
     intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
     syscall_list[SYS_HALT] = syscall_halt;
     syscall_list[SYS_EXIT] = syscall_exit;
     syscall_list[SYS_EXEC] = syscall_exec;
     syscall_list[SYS_WAIT] = syscall_wait;
-    // syscall_list[SYS_CREATE] = syscall_create;
-    // syscall_list[SYS_REMOVE] = syscall_remove;
+    syscall_list[SYS_CREATE] = syscall_create;
+    syscall_list[SYS_REMOVE] = syscall_remove;
     // syscall_list[SYS_OPEN] = syscall_open;
     // syscall_list[SYS_FILESIZE] = syscall_filesize;
     // syscall_list[SYS_READ] = syscall_read;
@@ -74,6 +78,31 @@ syscall_wait (uint32_t *args)
 {
     tid_t pid = args[0];
     return process_wait (pid);
+}
+
+uint32_t
+syscall_create (uint32_t *args)
+{
+    const char *file = (char *) check_ptr((void *) args[0]);
+    unsigned initial_size = (unsigned) args[1];
+    
+    lock_acquire(&filesys_lock);
+    bool ret = filesys_create(file, initial_size);
+    lock_release(&filesys_lock);
+
+    return ret;
+}
+
+uint32_t
+syscall_remove (uint32_t *args)
+{
+    const char *file = (char *) check_ptr((void *) args[0]);
+
+    lock_acquire(&filesys_lock);
+    bool ret = filesys_remove(file);
+    lock_release(&filesys_lock);
+
+    return ret;
 }
 
 uint32_t
