@@ -9,48 +9,36 @@
 #include "threads/vaddr.h"
 #include "userprog/process.h"
 #include "pagedir.h"
-static int syscall_argnum[SYS_NULL+1] = { 
-    0 /* SYS_HALT */,
-    1 /* SYS_EXIT */,
-    1 /* SYS_EXEC */,
-    1 /* SYS_WAIT */,
-    2 /* SYS_CREATE */,
-    1 /* SYS_REMOVE */,
-    1 /* SYS_OPEN */,
-    1 /* SYS_FILESIZE */,
-    3 /* SYS_READ */,
-    3 /* SYS_WRITE */,
-    2 /* SYS_SEEK */,
-    1 /* SYS_TELL */,
-    1 /* SYS_CLOSE */,
-    1 /* SYS_NULL */
-};
+
+typedef struct {
+    syscall_fun_t func;
+    int argc;
+} func_list;
 
 static void syscall_handler (struct intr_frame *);
 
-
 /* Syscall structs. */
-syscall_fun_t syscall_list[SYS_NULL+1];
-
+func_list syscall_list[SYS_NULL+1] = {
+    { syscall_halt, 0 },
+    { syscall_exit, 1 },
+    { syscall_exec, 1 },
+    { syscall_wait, 1 },
+    { NULL, 0 },//{ syscall_create, 2 },
+    { NULL, 0 },//{ syscall_remove, 1 },
+    { NULL, 0 },//{ syscall_open, 1 },
+    { NULL, 0 },//{ syscall_filesize, 1 },
+    { NULL, 0 },//{ syscall_read, 3 },
+    { syscall_write, 3 },
+    { NULL, 0 },//{ syscall_seek, 2 },
+    { NULL, 0 },//{ syscall_tell, 1 },
+    { NULL, 0 },//{ syscall_close, 1 },
+    { syscall_null, 1 }
+};
 
 void
 syscall_init (void) 
 {
     intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
-    syscall_list[SYS_HALT] = syscall_halt;
-    syscall_list[SYS_EXIT] = syscall_exit;
-    syscall_list[SYS_EXEC] = syscall_exec;
-    syscall_list[SYS_WAIT] = syscall_wait;
-    // syscall_list[SYS_CREATE] = syscall_create;
-    // syscall_list[SYS_REMOVE] = syscall_remove;
-    // syscall_list[SYS_OPEN] = syscall_open;
-    // syscall_list[SYS_FILESIZE] = syscall_filesize;
-    // syscall_list[SYS_READ] = syscall_read;
-    syscall_list[SYS_WRITE] = syscall_write;
-    // syscall_list[SYS_SEEK] = syscall_seek;
-    // syscall_list[SYS_TELL] = syscall_tell;
-    // syscall_list[SYS_CLOSE] = syscall_close;
-    syscall_list[SYS_NULL] = syscall_null;
 }
 
 void
@@ -59,11 +47,11 @@ syscall_handler (struct intr_frame *f UNUSED)
     uint32_t* args = (uint32_t*) check_ptr((void *) f->esp);
 
     int i;
-    for (i = 0; i < syscall_argnum[args[0]]; i++) {
+    for (i = 0; i < syscall_list[args[0]].argc; i++) {
         check_ptr(&args[i+1]);
     }
 
-    f->eax = syscall_list[args[0]](args+1);
+    f->eax = syscall_list[args[0]].func (args+1);
 }
 
 
