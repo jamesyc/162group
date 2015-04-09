@@ -4,6 +4,7 @@
 #include <string.h>
 #include <syscall-nr.h>
 #include "devices/shutdown.h"
+#include "devices/input.h"
 #include "threads/interrupt.h"
 #include "threads/thread.h"
 #include "threads/synch.h"
@@ -12,9 +13,11 @@
 #include "userprog/process.h"
 #include "pagedir.h"
 #include "filesys/filesys.h"
+#include "filesys/file.h"
 
 
 static void syscall_handler (struct intr_frame *);
+static struct file* get_file (int fd);
 static struct lock filesys_lock;
 static struct lock new_fd_lock;
 
@@ -33,7 +36,7 @@ func_list syscall_list[SYS_NULL+1] = {
     { syscall_remove, 1 },
     { syscall_open, 1 },
     { NULL, 0 },//{ syscall_filesize, 1 },
-    { NULL, 0 },//{ syscall_read, 3 },
+    { syscall_read, 3 },
     { syscall_write, 3 },
     { NULL, 0 },//{ syscall_seek, 2 },
     { NULL, 0 },//{ syscall_tell, 1 },
@@ -149,6 +152,33 @@ syscall_open (uint32_t *args)
 }
 
 uint32_t
+syscall_read (uint32_t *args)
+{
+    int fd = args[0];
+    char *buffer = (char *) check_ptr((void *) args[1]);
+    uint32_t length = args[2];
+    uint32_t bytes_read = -1;
+    if (fd == STDOUT_FILENO ) {
+        thread_exit (-1);
+    }
+    if (fd < 0) {
+        thread_exit (-1);
+    }
+    // check_ptr on buffer+size?
+    
+    if (fd == STDIN_FILENO) {
+        return input_getc();
+    }
+    lock_acquire (&filesys_lock);
+    struct file *file = get_file (fd);
+    if (file != NULL) {
+        bytes_read = file_read (file, buffer, length);
+    }
+    lock_release (&filesys_lock);    
+    return bytes_read;
+}
+
+uint32_t
 syscall_write (uint32_t *args)
 {
     /* Unwrap arguments. */
@@ -176,4 +206,17 @@ syscall_null (uint32_t *args)
     return i + 1;
 }
 
+static struct file *
+get_file (int fd)
+{
+    struct thread *t = thread_current ();
+    struct list_elem *e;
+    for (e = list_begin (&t->files); e != list_end (&t->files); e = list_next (e)) {
+        struct file_elem *f_elem = list_entry (e, struct file_elem, elem);
+        if (f_elem->fd == fd) {
+            return f_elem->file;
+        }
+    }
+    return NULL;
+}
 
