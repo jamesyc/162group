@@ -100,8 +100,8 @@ struct thread
     uint32_t *pagedir;                  /* Page directory. */
 #endif
 
-    /* Owned by thread.c. */
-    unsigned magic;                     /* Detects stack overflow. */
+    /* File descriptors */
+    struct list files;
 
     /* Used in syscall-wait implementation. */
     struct load_status *exec_status;
@@ -109,6 +109,9 @@ struct thread
 
     struct wait_status *wait_status;
     struct list children;
+
+    /* Owned by thread.c. */
+    unsigned magic;                     /* Detects stack overflow. */
   };
 
 struct load_status
@@ -127,6 +130,14 @@ struct wait_status
     struct lock lock;                   /* Protects ref_count. */
     struct semaphore dead;              /* Incremented if child dies. */
   };
+
+/* List element for file descriptors */
+struct file_elem
+{
+    int fd;
+    struct file *file;
+    struct list_elem elem;
+};
 
 /* If false (default), use round-robin scheduler.
    If true, use multi-level feedback queue scheduler.

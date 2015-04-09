@@ -8,6 +8,7 @@
 #include "threads/thread.h"
 #include "threads/synch.h"
 #include "threads/vaddr.h"
+#include "threads/malloc.h"
 #include "userprog/process.h"
 #include "pagedir.h"
 #include "filesys/filesys.h"
@@ -15,6 +16,7 @@
 
 static void syscall_handler (struct intr_frame *);
 static struct lock filesys_lock;
+static struct lock new_fd_lock;
 
 typedef struct {
     syscall_fun_t func;
@@ -27,9 +29,9 @@ func_list syscall_list[SYS_NULL+1] = {
     { syscall_exit, 1 },
     { syscall_exec, 1 },
     { syscall_wait, 1 },
-    { NULL, 0 },//{ syscall_create, 2 },
-    { NULL, 0 },//{ syscall_remove, 1 },
-    { NULL, 0 },//{ syscall_open, 1 },
+    { syscall_create, 2 },
+    { syscall_remove, 1 },
+    { syscall_open, 1 },
     { NULL, 0 },//{ syscall_filesize, 1 },
     { NULL, 0 },//{ syscall_read, 3 },
     { syscall_write, 3 },
@@ -43,6 +45,7 @@ void
 syscall_init (void) 
 {
     lock_init(&filesys_lock);
+    lock_init(&new_fd_lock);
     intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
 }
 
@@ -114,6 +117,35 @@ syscall_remove (uint32_t *args)
     lock_release(&filesys_lock);
 
     return ret;
+}
+
+uint32_t
+syscall_open (uint32_t *args)
+{
+    static int fd_to_issue = 2;
+    int fd;
+    const char *file_name = (char *) check_ptr((void *) args[0]);
+    /* Assign file descriptor number */
+    lock_acquire(&filesys_lock);
+    struct file *file = filesys_open (file_name);
+    lock_release(&filesys_lock);
+    if (!file) {
+        fd = -1;
+    } else {
+        lock_acquire (&new_fd_lock);
+        fd = fd_to_issue++;
+        lock_release (&new_fd_lock);
+    }
+    struct thread *t = thread_current ();
+    struct file_elem *f_elem = malloc (sizeof (struct file_elem));
+    /* Abort if malloc fails */
+    if (f_elem == NULL) {
+        thread_exit (-1);
+    }
+    f_elem->fd =fd;
+    f_elem->file = file;
+    list_push_back (&t->files, &f_elem->elem);
+    return fd;
 }
 
 uint32_t

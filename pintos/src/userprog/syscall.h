@@ -25,5 +25,6 @@ uint32_t syscall_close (uint32_t *args);
 uint32_t syscall_null (uint32_t *args);
 uint32_t syscall_create (uint32_t *args);
 uint32_t syscall_remove (uint32_t *args);
+uint32_t syscall_open (uint32_t *args);
 
 #endif /* userprog/syscall.h */
