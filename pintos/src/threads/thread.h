@@ -103,6 +103,9 @@ struct thread
     /* File descriptors */
     struct list files;
 
+    /* Locked exec file */
+    struct file *file_exe_curr;
+
     /* Used in syscall-wait implementation. */
     struct load_status *exec_status;
     struct load_status *load_status;
