@@ -122,7 +122,7 @@ syscall_remove (uint32_t *args)
     return ret;
 }
 
-int
+uint32_t
 syscall_open (uint32_t *args)
 {
     static int fd_to_issue = 2;
@@ -151,7 +151,7 @@ syscall_open (uint32_t *args)
     return fd;
 }
 
-void
+uint32_t
 syscall_close (uint32_t *args)
 {
     int fd = args[0];
@@ -167,12 +167,13 @@ syscall_close (uint32_t *args)
             list_remove (e);
             free (f_elem);
             lock_release(&filesys_lock);
-            return;
+            return 0;
         }
-    } 
+    }
+    return -1;
 }
 
-int
+uint32_t
 syscall_read (uint32_t *args)
 {
     int fd = args[0];
@@ -197,7 +198,7 @@ syscall_read (uint32_t *args)
     return bytes_read;
 }
 
-int
+uint32_t
 syscall_write (uint32_t *args)
 {
     /* Unwrap arguments. */
@@ -234,7 +235,7 @@ syscall_write (uint32_t *args)
     return bytes_written;
 }
 
-int
+uint32_t
 syscall_filesize (uint32_t *args)
 {
     int fd = args[0];
@@ -248,17 +249,20 @@ syscall_filesize (uint32_t *args)
     return f_size;
 }
 
-void
+uint32_t
 syscall_seek (uint32_t *args)
 {
     int fd = args[0];
     uint32_t pos = args[1];
     struct file* f = get_file (fd);
+    int seek = -1;
     if (f != NULL) {
       lock_acquire (&filesys_lock);
       file_seek (f, pos);
       lock_release (&filesys_lock);
+      seek = 0;
     }
+    return seek;
 }
 
 uint32_t
