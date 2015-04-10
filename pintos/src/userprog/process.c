@@ -187,6 +187,13 @@ process_exit (int exit_code)
 
   lock_release (&ws->lock);
 
+  /* Unlock access to executable file if it exists */
+  if (cur->file_exe_curr) {
+    file_allow_write (cur->file_exe_curr);
+    /* Close the executing file */
+    file_close (cur->file_exe_curr);
+  }
+
   /* TODO: Rewrite this using the write syscall. */
   char *name_end = strchr(cur->name, ' ');
   printf("%.*s: exit(%d)\n", name_end-cur->name, cur->name, exit_code);
@@ -394,9 +401,18 @@ load (const char *file_name, void (**eip) (void), void **esp)
   palloc_free_page (fn_copy);
   success = true;
 
+  /* Save pointer to executing file */
+  t->file_exe_curr = file;
+  /* Lock currently executing file from writes */
+  file_deny_write (file);
+
  done:
   /* We arrive here whether the load is successful or not. */
-  file_close (file);
+  if (success == false) {
+    if (file) {
+      file_close (file);
+    }
+  }
   return success;
 }
 

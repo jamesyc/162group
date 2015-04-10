@@ -306,10 +306,21 @@ thread_exit (int exit_code)
   process_exit (exit_code);
 #endif
 
+  intr_disable ();
+  struct thread *t = thread_current ();
+  struct list_elem *e;
+  /* Close file descriptors */
+  while (!list_empty (&t->files))
+  {
+    e = list_pop_back (&t->files);
+    struct file_elem *f_elem = list_entry (e, struct file_elem, elem);
+    file_close (f_elem->file);
+    free (f_elem);
+  }
+
   /* Remove thread from all threads list, set our status to dying,
      and schedule another process.  That process will destroy us
      when it calls thread_schedule_tail(). */
-  intr_disable ();
   list_remove (&thread_current()->allelem);
   thread_current ()->status = THREAD_DYING;
   schedule ();
@@ -485,6 +496,7 @@ init_thread (struct thread *t, const char *name, int priority)
   t->magic = THREAD_MAGIC;
 
   old_level = intr_disable ();
+  list_init (&t->files);
   list_init (&t->children);
   list_push_back (&all_list, &t->allelem);
   intr_set_level (old_level);
