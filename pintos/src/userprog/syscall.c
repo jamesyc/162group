@@ -38,7 +38,7 @@ func_list syscall_list[SYS_NULL+1] = {
     { syscall_filesize, 1 },
     { syscall_read, 3 },
     { syscall_write, 3 },
-    { NULL, 0 },//{ syscall_seek, 2 },
+    { syscall_seek, 2 },
     { NULL, 0 },//{ syscall_tell, 1 },
     { syscall_close, 1 },
     { syscall_null, 1 }
@@ -233,6 +233,19 @@ syscall_filesize (uint32_t *args)
         lock_release (&filesys_lock);
     }
     return f_size;
+}
+
+void
+syscall_seek (uint32_t *args)
+{
+    int fd = args[0];
+    uint32_t pos = args[1];
+    struct file* f = get_file (fd);
+    if (f != NULL) {
+      lock_acquire (&filesys_lock);
+      file_seek (f, pos);
+      lock_release (&filesys_lock);
+    }
 }
 
 uint32_t

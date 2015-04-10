@@ -29,5 +29,6 @@ uint32_t syscall_open (uint32_t *args);
 uint32_t syscall_close (uint32_t *args);
 uint32_t syscall_read (uint32_t *args);
 uint32_t syscall_filesize (uint32_t *args);
+void syscall_seek (uint32_t *args);
 
 #endif /* userprog/syscall.h */
