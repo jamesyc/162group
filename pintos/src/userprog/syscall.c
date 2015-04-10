@@ -122,7 +122,7 @@ syscall_remove (uint32_t *args)
     return ret;
 }
 
-uint32_t
+int
 syscall_open (uint32_t *args)
 {
     static int fd_to_issue = 2;
@@ -151,11 +151,10 @@ syscall_open (uint32_t *args)
     return fd;
 }
 
-uint32_t
+void
 syscall_close (uint32_t *args)
 {
     int fd = args[0];
-    uint32_t success = -1;
     struct thread *t = thread_current ();
     struct list_elem *e;
     struct file_elem *f_elem;
@@ -163,31 +162,29 @@ syscall_close (uint32_t *args)
     {
         f_elem = list_entry (e, struct file_elem, elem);
         if (f_elem->fd == fd) {
+            lock_acquire(&filesys_lock);
             file_close (f_elem->file);
             list_remove (e);
             free (f_elem);
-            success = 0;
-            return success;
+            lock_release(&filesys_lock);
+            return;
         }
     } 
-    return success;
 }
 
-uint32_t
+int
 syscall_read (uint32_t *args)
 {
     int fd = args[0];
     char *buffer = (char *) check_ptr((void *) args[1]);
     uint32_t length = args[2];
-    uint32_t bytes_read = -1;
+    int bytes_read = -1;
     if (fd == STDOUT_FILENO ) {
         thread_exit (-1);
     }
     if (fd < 0) {
         thread_exit (-1);
     }
-    // check_ptr on buffer+size?
-    
     if (fd == STDIN_FILENO) {
         return input_getc();
     }
@@ -200,11 +197,11 @@ syscall_read (uint32_t *args)
     return bytes_read;
 }
 
-uint32_t
+int
 syscall_write (uint32_t *args)
 {
     /* Unwrap arguments. */
-    int fd UNUSED = args[0];
+    int fd = args[0];
     const char *buffer = (const char *) args[1];
     unsigned length = args[2];
 
@@ -221,12 +218,12 @@ syscall_write (uint32_t *args)
     return write_len;
 }
 
-uint32_t
+int
 syscall_filesize (uint32_t *args)
 {
     int fd = args[0];
     struct file *f = get_file (fd);
-    uint32_t f_size = -1;
+    int f_size = -1;
     if (f != NULL) {
         lock_acquire (&filesys_lock);
         f_size = file_length (f);
@@ -253,11 +250,13 @@ syscall_tell (uint32_t *args)
 {
     int fd = args[0];
     struct file *f = get_file (fd);
-    uint32_t f_tell = -1;
+    uint32_t f_tell;
     if (f != NULL) {
         lock_acquire (&filesys_lock);
         f_tell = file_tell (f);
         lock_release (&filesys_lock);
+    } else {
+        thread_exit (-1);
     }
     return f_tell;
 }
