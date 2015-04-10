@@ -40,7 +40,7 @@ func_list syscall_list[SYS_NULL+1] = {
     { syscall_write, 3 },
     { NULL, 0 },//{ syscall_seek, 2 },
     { NULL, 0 },//{ syscall_tell, 1 },
-    { NULL, 0 },//{ syscall_close, 1 },
+    { syscall_close, 1 },
     { syscall_null, 1 }
 };
 
@@ -149,6 +149,28 @@ syscall_open (uint32_t *args)
     f_elem->file = file;
     list_push_back (&t->files, &f_elem->elem);
     return fd;
+}
+
+uint32_t
+syscall_close (uint32_t *args)
+{
+    int fd = args[0];
+    uint32_t success = -1;
+    struct thread *t = thread_current ();
+    struct list_elem *e;
+    struct file_elem *f_elem;
+    for (e = list_begin (&t->files); e != list_end (&t->files); e = list_next (e))
+    {
+        f_elem = list_entry (e, struct file_elem, elem);
+        if (f_elem->fd == fd) {
+            file_close (f_elem->file);
+            list_remove (e);
+            free (f_elem);
+            success = 0;
+            return success;
+        }
+    } 
+    return success;
 }
 
 uint32_t
