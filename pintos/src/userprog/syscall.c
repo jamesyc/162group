@@ -35,7 +35,7 @@ func_list syscall_list[SYS_NULL+1] = {
     { syscall_create, 2 },
     { syscall_remove, 1 },
     { syscall_open, 1 },
-    { NULL, 0 },//{ syscall_filesize, 1 },
+    { syscall_filesize, 1 },
     { syscall_read, 3 },
     { syscall_write, 3 },
     { NULL, 0 },//{ syscall_seek, 2 },
@@ -219,6 +219,20 @@ syscall_write (uint32_t *args)
     printf("%.*s", write_len, (char *) buffer);
     
     return write_len;
+}
+
+uint32_t
+syscall_filesize (uint32_t *args)
+{
+    int fd = args[0];
+    struct file *f = get_file (fd);
+    uint32_t f_size = -1;
+    if (f != NULL) {
+        lock_acquire (&filesys_lock);
+        f_size = file_length (f);
+        lock_release (&filesys_lock);
+    }
+    return f_size;
 }
 
 uint32_t
