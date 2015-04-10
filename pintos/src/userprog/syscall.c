@@ -130,9 +130,9 @@ syscall_open (uint32_t *args)
     const char *file_name = (char *) check_ptr((void *) args[0]);
     /* Assign file descriptor number */
     lock_acquire(&filesys_lock);
-    struct file *file = filesys_open (file_name);
+    struct file *f = filesys_open (file_name);
     lock_release(&filesys_lock);
-    if (!file) {
+    if (!f) {
         fd = -1;
     } else {
         lock_acquire (&new_fd_lock);
@@ -145,8 +145,8 @@ syscall_open (uint32_t *args)
     if (f_elem == NULL) {
         thread_exit (-1);
     }
-    f_elem->fd =fd;
-    f_elem->file = file;
+    f_elem->fd = fd;
+    f_elem->file = f;
     list_push_back (&t->files, &f_elem->elem);
     return fd;
 }
@@ -189,11 +189,11 @@ syscall_read (uint32_t *args)
         return input_getc();
     }
     lock_acquire (&filesys_lock);
-    struct file *file = get_file (fd);
-    if (file != NULL) {
-        bytes_read = file_read (file, buffer, length);
+    struct file *f = get_file (fd);
+    if (f != NULL) {
+        bytes_read = file_read (f, buffer, length);
     }
-    lock_release (&filesys_lock);    
+    lock_release (&filesys_lock);
     return bytes_read;
 }
 
@@ -202,8 +202,9 @@ syscall_write (uint32_t *args)
 {
     /* Unwrap arguments. */
     int fd = args[0];
-    const char *buffer = (const char *) args[1];
-    unsigned length = args[2];
+    char *buffer = (char *) check_ptr((void *) args[1]);
+    uint32_t length = args[2];
+    int bytes_written = 0;
 
     /* Check that all pages are user-readable. */
     const char *bufptr = buffer;
@@ -212,10 +213,25 @@ syscall_write (uint32_t *args)
         bufptr += PGSIZE;
     }
 
-    size_t write_len = strnlen (buffer, length);
-    printf("%.*s", write_len, (char *) buffer);
+    if (fd == STDIN_FILENO ) {
+        thread_exit (-1);
+    }
+    if (fd < 0) {
+        thread_exit (-1);
+    }
+    if (fd == STDOUT_FILENO) {
+        putbuf (buffer, length);
+        bytes_written = length;
+        return length;
+    }
     
-    return write_len;
+    struct file *f = get_file (fd);
+    if (f != NULL) {
+        lock_acquire (&filesys_lock);
+        bytes_written = file_write (f, buffer, length);
+        lock_release (&filesys_lock);
+    }
+    return bytes_written;
 }
 
 int
