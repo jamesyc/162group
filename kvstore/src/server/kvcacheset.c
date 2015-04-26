@@ -50,7 +50,6 @@ int kvcacheset_get(kvcacheset_t *cacheset, char *key, char **value) {
 int kvcacheset_put(kvcacheset_t *cacheset, char *key, char *value) {
   struct kvcacheentry *new_entry;
   struct kvcacheentry *el, *tmp;
-  bool evicted;
 
   /* Replace an old entry if overwritten. */
   DL_FOREACH_SAFE(cacheset->entries, el, tmp) {
@@ -74,21 +73,16 @@ int kvcacheset_put(kvcacheset_t *cacheset, char *key, char *value) {
   if (cacheset->num_entries < cacheset->elem_per_set) {
     cacheset->num_entries++;
   } else {
-    evicted = false;
+    DL_FOREACH(cacheset->entries, el) {
+      DL_DELETE(cacheset->entries, el);
 
-    do {
-      DL_FOREACH_SAFE(cacheset->entries, el, tmp) {
-        DL_DELETE(cacheset->entries, el);
-
-        if (el->refbit) {
-          el->refbit = false;
-          DL_APPEND(cacheset->entries, el);
-        } else {
-          evicted = true;
-          break;
-        }
+      if (el->refbit) {
+        el->refbit = false;
+        DL_APPEND(cacheset->entries, el);
+      } else {
+        break;
       }
-    } while(!evicted);
+    }
   }
 
   DL_APPEND(cacheset->entries, new_entry);
