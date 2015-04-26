@@ -19,6 +19,8 @@ typedef struct wq_item {
 
 typedef struct wq {
   wq_item_t *head;         /* The head of the list of items. */
+  pthread_mutex_t lock;    /* Used to lock the work queue. */
+  pthread_cond_t cond;     /* Used to signal threads of available tasks. */
 } wq_t;
 
 
