@@ -33,12 +33,12 @@ int kvcacheset_init(kvcacheset_t *cacheset, unsigned int elem_per_set) {
  * malloced string which should later be freed. */
 int kvcacheset_get(kvcacheset_t *cacheset, char *key, char **value) {
   struct kvcacheentry *elt;
-
   HASH_FIND_STR(cacheset->hash, key, elt);
 
   if (!elt)
     return ERRNOKEY;
 
+  elt->refbit = true;
   *value = malloc(strlen(elt->value)+1);
   strcpy(*value, elt->value);
   return 0;
@@ -54,6 +54,7 @@ int kvcacheset_put(kvcacheset_t *cacheset, char *key, char *value) {
   /* Replace an old entry if overwritten. */
   HASH_FIND_STR(cacheset->hash, key, elt);
   if (elt) {
+    elt->refbit = true;
     elt->value = value;
     return 0;
   }
