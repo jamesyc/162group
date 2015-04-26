@@ -4,7 +4,6 @@
 #include "kvserver.h"
 #include "tpcmaster.h"
 #include "wq.h"
-#include <semaphore.h>
 
 /* Socket Server defines helper functions for communicating over sockets.
  *

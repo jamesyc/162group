@@ -5,7 +5,6 @@
 #include <netdb.h>
 #include <netinet/in.h>
 #include <pthread.h>
-#include <semaphore.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
