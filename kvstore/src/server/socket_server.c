@@ -99,7 +99,6 @@ int server_run(const char *hostname, int port, server_t *server,
   struct sockaddr_in client_address;
   size_t client_address_length = sizeof(client_address);
   wq_init(&server->wq);
-  sem_init(&server->sem, 0, server->max_threads);
   server->listening = 1;
   server->port = port;
   server->hostname = (char *) malloc(strlen(hostname) + 1);
@@ -151,7 +150,6 @@ int server_run(const char *hostname, int port, server_t *server,
     client_sock = accept(sock_fd, (struct sockaddr *) &client_address,
         (socklen_t *) &client_address_length);
     if (client_sock > 0) {
-      sem_wait(&server->sem);
       wq_push(&server->wq, (void *) (intptr_t) client_sock);
     }
   }
