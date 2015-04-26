@@ -31,12 +31,12 @@ int kvcacheset_init(kvcacheset_t *cacheset, unsigned int elem_per_set) {
  * else returns a negative error code. If successful, populates VALUE with a
  * malloced string which should later be freed. */
 int kvcacheset_get(kvcacheset_t *cacheset, char *key, char **value) {
-  struct kvcacheentry *el;
+  struct kvcacheentry *elt;
 
-  DL_FOREACH(cacheset->entries, el) {
-    if (!strcmp(el->key, key)) {
-      *value = malloc(strlen(el->value)+1);
-      strcpy(*value, el->value);
+  DL_FOREACH(cacheset->entries, elt) {
+    if (!strcmp(elt->key, key)) {
+      *value = malloc(strlen(elt->value)+1);
+      strcpy(*value, elt->value);
       return 0;
     }
   }
@@ -76,12 +76,11 @@ int kvcacheset_put(kvcacheset_t *cacheset, char *key, char *value) {
     DL_FOREACH(cacheset->entries, el) {
       DL_DELETE(cacheset->entries, el);
 
-      if (el->refbit) {
-        el->refbit = false;
-        DL_APPEND(cacheset->entries, el);
-      } else {
+      if (!el->refbit)
         break;
-      }
+
+      el->refbit = false;
+      DL_APPEND(cacheset->entries, el);
     }
   }
 
@@ -92,11 +91,11 @@ int kvcacheset_put(kvcacheset_t *cacheset, char *key, char *value) {
 /* Deletes the entry corresponding to KEY from CACHESET. Returns 0 if
  * successful, else returns a negative error code. */
 int kvcacheset_del(kvcacheset_t *cacheset, char *key) {
-  struct kvcacheentry *el;
+  struct kvcacheentry *elt;
 
-  DL_FOREACH(cacheset->entries, el) {
-    if (!strcmp(el->key, key)) {
-      DL_DELETE(cacheset->entries, el);
+  DL_FOREACH(cacheset->entries, elt) {
+    if (!strcmp(elt->key, key)) {
+      DL_DELETE(cacheset->entries, elt);
       return 0;
     }
   }
