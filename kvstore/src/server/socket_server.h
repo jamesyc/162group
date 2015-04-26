@@ -35,11 +35,6 @@ typedef struct server {
   };
 } server_t;
 
-struct handler_aux {
-  server_t *server;
-  void *client_sock;
-};
-
 int connect_to(const char *host, int port, int timeout);
 int server_run(const char *hostname, int port, server_t *server,
     callback_t callback);
