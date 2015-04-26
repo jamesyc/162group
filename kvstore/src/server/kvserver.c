@@ -56,6 +56,9 @@ int kvserver_get(kvserver_t *server, char *key, char **value) {
   int success;
   pthread_rwlock_t *lock;
 
+  if (strlen(key) > MAX_KEYLEN)
+    return ERRKEYLEN;
+
   lock = kvcache_getlock(&server->cache, key);
 
   pthread_rwlock_rdlock(lock);
@@ -88,6 +91,10 @@ int kvserver_put_check(kvserver_t *server, char *key, char *value) {
 int kvserver_put(kvserver_t *server, char *key, char *value) {
   int success;
   pthread_rwlock_t *lock;
+
+  success = kvserver_put_check(server, key, value);
+  if (success < 0)
+    return success;
 
   lock = kvcache_getlock(&server->cache, key);
 
@@ -158,27 +165,35 @@ void kvserver_handle_tpc(kvserver_t *server, kvmessage_t *reqmsg,
 void kvserver_handle_no_tpc(kvserver_t *server, kvmessage_t *reqmsg,
     kvmessage_t *respmsg) {
 
-  int success;
-  char **value;
+  int error, type;
+  char **value = malloc(sizeof(char **));
+
+  /* Set default response type. */
+  respmsg->type = RESP;
 
   switch(reqmsg->type) {
     case GETREQ:
-      success = kvserver_get(server, reqmsg->key, value);
+      error = kvserver_get(server, reqmsg->key, value);
+
+      if (!error) {
+        respmsg->type = GETRESP;
+        respmsg->key = reqmsg->key;
+        respmsg->value = *value;
+      }
+
       break;
     case PUTREQ:
-      success = kvserver_put(server, reqmsg->key, reqmsg->value);
+      error = kvserver_put(server, reqmsg->key, reqmsg->value);
       break;
     case DELREQ:
-      success = kvserver_del(server, reqmsg->key);
+      error = kvserver_del(server, reqmsg->key);
       break;
   }
 
-  respmsg->type = RESP;
-
-  if (success == 0) {
+  if (!error) {
     respmsg->message = MSG_SUCCESS;
   } else {
-    respmsg->message = GETMSG(success);
+    respmsg->message = GETMSG(error);
   }
   
 }
