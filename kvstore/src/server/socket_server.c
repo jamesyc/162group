@@ -79,8 +79,10 @@ int connect_to(const char *host, int port, int timeout) {
 /* Handles a request in a new thread. */
 void *request_handler(void* aux) {
   server_t *server = (server_t *) aux;
-  handle(server);
-  sem_post(&server->sem);
+
+  for(;;) {
+    handle(server);
+  }
 }
 
 /* Runs SERVER such that it indefinitely (until server_stop is called) listens
@@ -140,14 +142,17 @@ int server_run(const char *hostname, int port, server_t *server,
 
   pthread_t handler_thread;
 
+  /* Create MAX_THREADS threads to process requests off the work queue. */
+  for (int i=0; i < server->max_threads; i++) {
+    pthread_create(&handler_thread, NULL, request_handler, (void *) server);
+  }
+
   while (server->listening) {
     client_sock = accept(sock_fd, (struct sockaddr *) &client_address,
         (socklen_t *) &client_address_length);
     if (client_sock > 0) {
       sem_wait(&server->sem);
       wq_push(&server->wq, (void *) (intptr_t) client_sock);
-
-      pthread_create(&handler_thread, NULL, request_handler, (void *) server);
     }
   }
   shutdown(sock_fd, SHUT_RDWR);
