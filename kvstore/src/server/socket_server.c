@@ -5,6 +5,7 @@
 #include <netdb.h>
 #include <netinet/in.h>
 #include <pthread.h>
+#include <semaphore.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -75,6 +76,18 @@ int connect_to(const char *host, int port, int timeout) {
   return sockfd;
 }
 
+/* Handles a request in a new thread. */
+void *request_handler(void* aux) {
+  struct handler_aux *ha = (struct handler_aux *) aux;
+
+  wq_push(&ha->server->wq, ha->client_sock);
+  handle(ha->server);
+
+  sem_post(&ha->server->sem);
+  free(aux);
+}
+
+
 /* Runs SERVER such that it indefinitely (until server_stop is called) listens
  * for incoming requests at HOSTNAME:PORT. If CALLBACK is not NULL, makes a
  * call to CALLBACK with NULL as its parameter once SERVER is actively
@@ -89,6 +102,7 @@ int server_run(const char *hostname, int port, server_t *server,
   struct sockaddr_in client_address;
   size_t client_address_length = sizeof(client_address);
   wq_init(&server->wq);
+  sem_init(&server->sem, 0, server->max_threads);
   server->listening = 1;
   server->port = port;
   server->hostname = (char *) malloc(strlen(hostname) + 1);
@@ -129,19 +143,26 @@ int server_run(const char *hostname, int port, server_t *server,
     callback(NULL);
   }
 
+  pthread_t handler_thread;
 
   while (server->listening) {
     client_sock = accept(sock_fd, (struct sockaddr *) &client_address,
         (socklen_t *) &client_address_length);
     if (client_sock > 0) {
-      wq_push(&server->wq, (void *) (intptr_t) client_sock);
-      handle(server);
+      sem_wait(&server->sem);
+
+      struct handler_aux *ha = malloc(sizeof(struct handler_aux));
+      ha->server = server;
+      ha->client_sock = (void *) (intptr_t) client_sock;
+
+      pthread_create(&handler_thread, NULL, request_handler, (void *) ha);
     }
   }
   shutdown(sock_fd, SHUT_RDWR);
   close(sock_fd);
   return 0;
 }
+
 
 /* Stops SERVER from continuing to listen for incoming requests. */
 void server_stop(server_t *server) {

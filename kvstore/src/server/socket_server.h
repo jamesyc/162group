@@ -4,6 +4,7 @@
 #include "kvserver.h"
 #include "tpcmaster.h"
 #include "wq.h"
+#include <semaphore.h>
 
 /* Socket Server defines helper functions for communicating over sockets.
  *
@@ -24,6 +25,7 @@ typedef struct server {
   int listening;            /* 1 if this server is currently listening, else 0. */
   int sockfd;               /* The socket fd this server is operating on. */
   int max_threads;          /* The maximum number of concurrent jobs that can run. */
+  sem_t sem;                /* Semaphore for handling limits on max_threads. */
   int port;                 /* The port this server will listen on. */
   char *hostname;           /* The hostname this server will listen on. */
   wq_t wq;                  /* The work queue this server will use to process jobs. */
@@ -32,6 +34,11 @@ typedef struct server {
     tpcmaster_t tpcmaster;
   };
 } server_t;
+
+struct handler_aux {
+  server_t *server;
+  void *client_sock;
+};
 
 int connect_to(const char *host, int port, int timeout);
 int server_run(const char *hostname, int port, server_t *server,
