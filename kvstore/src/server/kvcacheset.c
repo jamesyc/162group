@@ -35,8 +35,9 @@ int kvcacheset_get(kvcacheset_t *cacheset, char *key, char **value) {
   struct kvcacheentry *elt;
   HASH_FIND_STR(cacheset->hash, key, elt);
 
-  if (!elt)
+  if (!elt) {
     return ERRNOKEY;
+  }
 
   elt->refbit = true;
   *value = malloc(strlen(elt->value)+1);
@@ -49,7 +50,7 @@ int kvcacheset_get(kvcacheset_t *cacheset, char *key, char **value) {
  * exceed CACHESET->elem_per_set total entries. */
 int kvcacheset_put(kvcacheset_t *cacheset, char *key, char *value) {
   struct kvcacheentry *new_entry;
-  struct kvcacheentry *elt;
+  struct kvcacheentry *elt, *tmp;
 
   /* Replace an old entry if overwritten. */
   HASH_FIND_STR(cacheset->hash, key, elt);
@@ -67,19 +68,21 @@ int kvcacheset_put(kvcacheset_t *cacheset, char *key, char *value) {
   /* Initialize values in the entry. */
   new_entry->key = key;
   new_entry->value = value;
+  new_entry->refbit = false;
 
   /* Check for evictions. */
   if (cacheset->num_entries < cacheset->elem_per_set) {
     cacheset->num_entries++;
   } else {
-    DL_FOREACH(cacheset->entries, elt) {
+    DL_FOREACH_SAFE(cacheset->entries, elt, tmp) {
       DL_DELETE(cacheset->entries, elt);
 
-      if (!elt->refbit)
+      if (!elt->refbit) {
         HASH_DEL(cacheset->hash, elt);
         free(elt);
         break;
-
+      }
+        
       elt->refbit = false;
       DL_APPEND(cacheset->entries, elt);
     }
@@ -116,8 +119,5 @@ void kvcacheset_clear(kvcacheset_t *cacheset) {
     free(elt);
   }
 }
-
-
-
 
 

@@ -165,7 +165,7 @@ void kvserver_handle_tpc(kvserver_t *server, kvmessage_t *reqmsg,
 void kvserver_handle_no_tpc(kvserver_t *server, kvmessage_t *reqmsg,
     kvmessage_t *respmsg) {
 
-  int error, type;
+  int error;
   char **value = malloc(sizeof(char **));
 
   /* Set default response type. */
