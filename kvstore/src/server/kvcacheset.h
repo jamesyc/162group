@@ -19,9 +19,11 @@
 
 /* An entry within the KVCacheSet. */
 struct kvcacheentry {
-  char *key;                      /* The entry's key. */
-  char *value;                    /* The entry's value. */
-  bool refbit;                    /* Used to determine if this entry has been used. */
+  char *key;                        /* The entry's key. */
+  char *value;                      /* The entry's value. */
+  bool refbit;                      /* Used to determine if this entry has been used. */
+  struct kvcacheentry *prev, *next; /* Used in linked list implementation. */
+  UT_hash_handle hh;                /* Make this struct hashable. */
 };
 
 /* A KVCacheSet. */
@@ -29,6 +31,8 @@ typedef struct {
   unsigned int elem_per_set;      /* The max number of elements which can be stored in this set. */
   pthread_rwlock_t lock;          /* The lock which can be used to lock this set. */
   int num_entries;                /* The current number of entries in this set. */
+  struct kvcacheentry *entries;   /* Head pointer to entry linked list. */
+  struct kvcacheentry *hash;      /* Pointer to hash table. */
 } kvcacheset_t;
 
 int kvcacheset_init(kvcacheset_t *, unsigned int elem_per_set);
