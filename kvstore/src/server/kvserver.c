@@ -53,33 +53,83 @@ int kvserver_register_master(kvserver_t *server, int sockfd) {
  * be free()d.  If the KEY is in cache, take the value from there. Otherwise,
  * go to the store and update the value in the cache. */
 int kvserver_get(kvserver_t *server, char *key, char **value) {
-  return -1;
+  int success;
+  pthread_rwlock_t *lock;
+
+  if (strlen(key) > MAX_KEYLEN)
+    return ERRKEYLEN;
+
+  lock = kvcache_getlock(&server->cache, key);
+
+  pthread_rwlock_rdlock(lock);
+  success = kvcache_get(&server->cache, key, value);
+  pthread_rwlock_unlock(lock);
+  
+  /* If the key is not in the cache, go to the store. */
+  if (success < 0) {
+    success = kvstore_get(&server->store, key, value);
+    
+    if (success == 0) {
+      pthread_rwlock_wrlock(lock);
+      kvcache_put(&server->cache, key, *value);
+      pthread_rwlock_unlock(lock);
+    }
+  }
+
+  return success;
 }
 
 /* Checks if the given KEY, VALUE pair can be inserted into this server's
  * store. Returns 0 if it can, else a negative error code. */
 int kvserver_put_check(kvserver_t *server, char *key, char *value) {
-  return -1;
+  return kvstore_put_check(&server->store, key, value);
 }
 
 /* Inserts the given KEY, VALUE pair into this server's store and cache. Access
  * to the cache should be concurrent if the keys are in different cache sets.
  * Returns 0 if successful, else a negative error code. */
 int kvserver_put(kvserver_t *server, char *key, char *value) {
-  return -1;
+  int success;
+  pthread_rwlock_t *lock;
+
+  success = kvserver_put_check(server, key, value);
+  if (success < 0)
+    return success;
+
+  lock = kvcache_getlock(&server->cache, key);
+
+  pthread_rwlock_wrlock(lock);
+  success = kvcache_put(&server->cache, key, value);
+  pthread_rwlock_unlock(lock);
+
+  if (success < 0)
+    return success;
+
+  success = kvstore_put(&server->store, key, value);
+  return success;
 }
 
 /* Checks if the given KEY can be deleted from this server's store.
  * Returns 0 if it can, else a negative error code. */
 int kvserver_del_check(kvserver_t *server, char *key) {
-  return -1;
+  return kvstore_del_check(&server->store, key);
 }
 
 /* Removes the given KEY from this server's store and cache. Access to the
  * cache should be concurrent if the keys are in different cache sets. Returns
  * 0 if successful, else a negative error code. */
 int kvserver_del(kvserver_t *server, char *key) {
-  return -1;
+  int success;
+  pthread_rwlock_t *lock;
+
+  lock = kvcache_getlock(&server->cache, key);
+
+  pthread_rwlock_wrlock(lock);
+  success = kvcache_del(&server->cache, key);
+  pthread_rwlock_unlock(lock);
+
+  success = kvstore_del(&server->store, key);
+  return success;
 }
 
 /* Returns an info string about SERVER including its hostname and port. */
@@ -114,8 +164,38 @@ void kvserver_handle_tpc(kvserver_t *server, kvmessage_t *reqmsg,
  * message. See the spec for details on logic and error messages. */
 void kvserver_handle_no_tpc(kvserver_t *server, kvmessage_t *reqmsg,
     kvmessage_t *respmsg) {
+
+  int error, type;
+  char **value = malloc(sizeof(char **));
+
+  /* Set default response type. */
   respmsg->type = RESP;
-  respmsg->message = ERRMSG_NOT_IMPLEMENTED;
+
+  switch(reqmsg->type) {
+    case GETREQ:
+      error = kvserver_get(server, reqmsg->key, value);
+
+      if (!error) {
+        respmsg->type = GETRESP;
+        respmsg->key = reqmsg->key;
+        respmsg->value = *value;
+      }
+
+      break;
+    case PUTREQ:
+      error = kvserver_put(server, reqmsg->key, reqmsg->value);
+      break;
+    case DELREQ:
+      error = kvserver_del(server, reqmsg->key);
+      break;
+  }
+
+  if (!error) {
+    respmsg->message = MSG_SUCCESS;
+  } else {
+    respmsg->message = GETMSG(error);
+  }
+  
 }
 
 /* Generic entrypoint for this SERVER. Takes in a socket on SOCKFD, which
