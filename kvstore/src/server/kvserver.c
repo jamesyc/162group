@@ -165,29 +165,23 @@ void kvserver_handle_tpc(kvserver_t *server, kvmessage_t *reqmsg,
 void kvserver_handle_no_tpc(kvserver_t *server, kvmessage_t *reqmsg,
     kvmessage_t *respmsg) {
 
-  int error, type;
+  int error;
   char **value = malloc(sizeof(char **));
 
   /* Set default response type. */
   respmsg->type = RESP;
 
-  switch(reqmsg->type) {
-    case GETREQ:
-      error = kvserver_get(server, reqmsg->key, value);
-
-      if (!error) {
-        respmsg->type = GETRESP;
-        respmsg->key = reqmsg->key;
-        respmsg->value = *value;
-      }
-
-      break;
-    case PUTREQ:
-      error = kvserver_put(server, reqmsg->key, reqmsg->value);
-      break;
-    case DELREQ:
-      error = kvserver_del(server, reqmsg->key);
-      break;
+  if (reqmsg->type == GETREQ) {
+    error = kvserver_get(server, reqmsg->key, value);
+    if (!error) {
+      respmsg->type = GETRESP;
+      respmsg->key = reqmsg->key;
+      respmsg->value = *value;
+    }
+  } else if (reqmsg->type == PUTREQ) {
+    error = kvserver_put(server, reqmsg->key, reqmsg->value);
+  } else if (reqmsg->type == DELREQ) {
+    error = kvserver_del(server, reqmsg->key);
   }
 
   if (!error) {
