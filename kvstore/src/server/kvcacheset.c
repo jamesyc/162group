@@ -49,47 +49,60 @@ int kvcacheset_get(kvcacheset_t *cacheset, char *key, char **value) {
  * returns a negative error code. Should evict elements if necessary to not
  * exceed CACHESET->elem_per_set total entries. */
 int kvcacheset_put(kvcacheset_t *cacheset, char *key, char *value) {
-  struct kvcacheentry *new_entry;
+  struct kvcacheentry *selected;
   struct kvcacheentry *elt, *tmp;
 
-  /* Replace an old entry if overwritten. */
-  HASH_FIND_STR(cacheset->hash, key, elt);
-  if (elt) {
-    elt->refbit = true;
-    elt->value = value;
-    return 0;
-  }
-
-  new_entry = malloc(sizeof(struct kvcacheentry));
-  if (!new_entry) {
-    return ERRFILLEN;
-  }
-
-  /* Initialize values in the entry. */
-  new_entry->key = key;
-  new_entry->value = value;
-  new_entry->refbit = false;
-
-  /* Check for evictions. */
-  if (cacheset->num_entries < cacheset->elem_per_set) {
-    cacheset->num_entries++;
+  /* Check if an entry with the key already exists. If it does, set the refbit
+   * and replace its value, otherwise allocate a new entry. */
+  HASH_FIND_STR(cacheset->hash, key, selected);
+  if (selected) {
+    free(selected->value);
+    selected->refbit = true;
   } else {
-    DL_FOREACH_SAFE(cacheset->entries, elt, tmp) {
-      DL_DELETE(cacheset->entries, elt);
-
-      if (!elt->refbit) {
-        HASH_DEL(cacheset->hash, elt);
-        free(elt);
-        break;
-      }
-        
-      elt->refbit = false;
-      DL_APPEND(cacheset->entries, elt);
+    selected = malloc(sizeof(struct kvcacheentry));
+    selected->key = malloc(strlen(key)+1);
+    if (!selected->key) {
+      return ERRFILCRT;
     }
+
+    strcpy(selected->key, key);
+    selected->refbit = false;
   }
 
-  DL_APPEND(cacheset->entries, new_entry);
-  HASH_ADD_KEYPTR(hh, cacheset->hash, key, strlen(key), new_entry);
+
+  /* Copy the value into the entry field. */
+  selected->value = malloc(strlen(value)+1);
+  if (!selected->value) {
+    return ERRFILCRT;
+  }
+  strcpy(selected->value, value);
+
+
+  /* If adding a new entry, check for evictions. */
+  if (!selected->refbit) {
+    if (cacheset->num_entries < cacheset->elem_per_set) {
+      cacheset->num_entries++;
+    } else {
+      DL_FOREACH_SAFE(cacheset->entries, elt, tmp) {
+        DL_DELETE(cacheset->entries, elt);
+
+        if (!elt->refbit) {
+          HASH_DEL(cacheset->hash, elt);
+          free(elt->key);
+          free(elt->value);
+          free(elt);
+          break;
+        }
+          
+        elt->refbit = false;
+        DL_APPEND(cacheset->entries, elt);
+      }
+    }
+
+    DL_APPEND(cacheset->entries, selected);
+    HASH_ADD_KEYPTR(hh, cacheset->hash, selected->key, 
+      strlen(selected->key), selected);
+  }
   return 0;
 }
 

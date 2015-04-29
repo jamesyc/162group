@@ -89,24 +89,24 @@ int kvserver_put_check(kvserver_t *server, char *key, char *value) {
  * to the cache should be concurrent if the keys are in different cache sets.
  * Returns 0 if successful, else a negative error code. */
 int kvserver_put(kvserver_t *server, char *key, char *value) {
-  int success;
+  int err;
   pthread_rwlock_t *lock;
 
-  success = kvserver_put_check(server, key, value);
-  if (success < 0)
-    return success;
+  err = kvserver_put_check(server, key, value);
+  if (err < 0)
+    return err;
+
+  err = kvstore_put(&server->store, key, value);
+  if (err < 0)
+    return err;
 
   lock = kvcache_getlock(&server->cache, key);
 
   pthread_rwlock_wrlock(lock);
-  success = kvcache_put(&server->cache, key, value);
+  err = kvcache_put(&server->cache, key, value);
   pthread_rwlock_unlock(lock);
 
-  if (success < 0)
-    return success;
-
-  success = kvstore_put(&server->store, key, value);
-  return success;
+  return err;
 }
 
 /* Checks if the given KEY can be deleted from this server's store.
