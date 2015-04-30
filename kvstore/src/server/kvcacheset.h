@@ -42,5 +42,6 @@ int kvcacheset_put(kvcacheset_t *, char *key, char *value);
 int kvcacheset_del(kvcacheset_t *, char *key);
 
 void kvcacheset_clear(kvcacheset_t *);
+int kvcacheset_refbit(kvcacheset_t *cacheset, char *key);
 
 #endif

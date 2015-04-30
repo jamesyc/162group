@@ -120,4 +120,12 @@ void kvcacheset_clear(kvcacheset_t *cacheset) {
   }
 }
 
+/* Returns refbit of key. For testing purposes. */
+int kvcacheset_refbit(kvcacheset_t *cacheset, char *key) {
+  struct kvcacheentry *entry;
+  HASH_FIND_STR(cacheset->hash, key, entry);
 
+  if (!entry)
+    return -1;
+  return entry->refbit;
+}
