@@ -100,6 +100,24 @@ int kvcache_set_locks(void) {
   return 1;
 }
 
+int kvcache_replace_value(void) {
+  char *rstring;
+  int rv = kvcache_put(&testcache, "key1", "val1");
+  rv += kvcache_put(&testcache, "key1", "val1-new");
+  rv += kvcache_get(&testcache, "key1", &rstring);
+  ASSERT_EQUAL(rv, 0);
+  ASSERT_PTR_NOT_NULL(rstring);
+  ASSERT_STRING_EQUAL(rstring, "val1-new");
+  free(rstring);
+  rstring = NULL;
+  return 1;
+}
+
+int kvcache_delete_invalid_key(void) {
+  int rv = kvcache_del(&testcache, "invalid");
+  ASSERT_EQUAL(rv, ERRNOKEY);
+  return 1;
+}
 
 test_info_t kvcache_tests[] = {
   {"Simple PUT and GET of a single value", kvcache_simple_put_get_single},
@@ -109,6 +127,8 @@ test_info_t kvcache_tests[] = {
   {"Simple DEL test", kvcache_del_simple},
   {"Testing that locks are same for keys in same set, diff for keys in "
     "diff sets", kvcache_set_locks},
+  {"Simple PUT replacing an existing value", kvcache_replace_value},
+  {"Simple DEL with invalid key", kvcache_delete_invalid_key},
   NULL_TEST_INFO
 };
 

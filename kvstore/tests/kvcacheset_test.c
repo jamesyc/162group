@@ -142,6 +142,28 @@ int kvcacheset_clear_all(void) {
   return 1;
 }
 
+int kvcacheset_check_initial_refbit(void) {
+  kvcacheset_put(&testset, "key1", "val1");
+  ASSERT_EQUAL(0, kvcacheset_refbit(&testset, "key1"));
+  kvcacheset_put(&testset, "key2", "val2");
+  ASSERT_EQUAL(0, kvcacheset_refbit(&testset, "key2"));
+  kvcacheset_put(&testset, "key3", "val3");
+  ASSERT_EQUAL(0, kvcacheset_refbit(&testset, "key3"));
+  kvcacheset_put(&testset, "key4", "val4");
+  ASSERT_EQUAL(0, kvcacheset_refbit(&testset, "key4"));
+  return 1;
+}
+
+int kvcacheset_check_refbit_access(void) {
+  char *rstring;
+  kvcacheset_put(&testset, "key1", "val1");
+  kvcacheset_get(&testset, "key1", &rstring);
+  ASSERT_EQUAL(1, kvcacheset_refbit(&testset, "key1"));
+  free(rstring);
+  rstring = NULL;
+  return 1;
+}
+
 
 test_info_t kvcacheset_tests[] = {
   {"Simple PUT and GET of a single value", kvcacheset_simple_put_get_single},
@@ -154,6 +176,8 @@ test_info_t kvcacheset_tests[] = {
   {"PUT with overfull cache, replacement policy when all ref bits set",
     kvcacheset_replacement_all_ref_bits},
   {"Clearing the cache set", kvcacheset_clear_all},
+  {"Ensure all refbits are initially unset", kvcacheset_check_initial_refbit},
+  {"Ensure refbit is set after access", kvcacheset_check_refbit_access},
   NULL_TEST_INFO
 };
 

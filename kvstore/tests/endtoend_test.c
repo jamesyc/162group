@@ -8,6 +8,8 @@
 #define ENDTOEND_PORT 8162
 #define ENDTOEND_SERVER_NAME "endtoend_server"
 
+#define THREAD_REQUESTS 1000
+
 server_t socket_server;
 kvserver_t *kvserver;
 pthread_mutex_t endtoend_lock;
@@ -104,9 +106,46 @@ void *endtoend_test_client_thread(void *aux) {
   return 0;
 }
 
+void *endtoend_test_client_thread_load(void *aux) {
+  kvmessage_t reqmsg, *respmsg;
+  int pass = 1;
+
+  memset(&reqmsg, 0, sizeof(kvmessage_t));
+  reqmsg.type = PUTREQ;
+  reqmsg.key = "key1";
+  reqmsg.value = "value1";
+  respmsg = endtoend_send_and_receive(&reqmsg);
+  if (respmsg->type != RESP)
+    pass = 0;
+  kvmessage_free(respmsg);
+
+  int i;
+  for (i = 0; i < THREAD_REQUESTS; i++) {
+    memset(&reqmsg, 0, sizeof(kvmessage_t));
+    reqmsg.type = GETREQ;
+    reqmsg.key = "key1";
+    respmsg = endtoend_send_and_receive(&reqmsg);
+    if (respmsg->type != GETRESP || strcmp(respmsg->key, "key1") != 0
+        || strcmp(respmsg->value, "value1") != 0)
+      pass = 0;
+    kvmessage_free(respmsg);
+  }
+
+  pthread_mutex_lock(&endtoend_lock);
+  synch = pass;
+  pthread_cond_signal(&endtoend_cond);
+  pthread_mutex_unlock(&endtoend_lock);
+  return 0;
+}
+
 void endtoend_test_connect() {
   pthread_t thread;
   pthread_create(&thread, NULL, &endtoend_test_client_thread, NULL);
+}
+
+void endtoend_test_connect_load() {
+  pthread_t thread;
+  pthread_create(&thread, NULL, &endtoend_test_client_thread_load, NULL);
 }
 
 void *endtoend_server_runner(void *callback){
@@ -131,8 +170,25 @@ int endtoend_test(void) {
   return 1;
 }
 
+int endtoend_test_load(void) {
+  int pass;
+  pthread_t server_thread;
+  pthread_create(&server_thread, NULL, &endtoend_server_runner,
+      endtoend_test_connect_load);
+
+  pthread_mutex_lock(&endtoend_lock);
+  pthread_cond_wait(&endtoend_cond, &endtoend_lock);
+  pass = (synch == 1);
+  pthread_mutex_unlock(&endtoend_lock);
+
+  server_stop(&socket_server);
+  ASSERT_TRUE(pass);
+  return 1;
+}
+
 test_info_t endtoend_tests[] = {
   {"End to end test placing keys, deleting them, getting them", endtoend_test},
+  {"End to end test putting a key, and getting it repeatedly", endtoend_test_load},
   NULL_TEST_INFO
 };
 
