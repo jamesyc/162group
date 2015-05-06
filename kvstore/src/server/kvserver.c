@@ -45,7 +45,21 @@ int kvserver_init(kvserver_t *server, char *dirname, unsigned int num_sets,
  *
  * Checkpoint 2 only. */
 int kvserver_register_master(kvserver_t *server, int sockfd) {
-  return 0;
+  kvmessage_t *regmsg = (kvmessage_t*) malloc(sizeof(kvmessage_t));
+  char *msg = (char*) malloc(MAX_KEYLEN * sizeof(char));
+  char *key = (char*) malloc(MAX_KEYLEN * sizeof(char));
+  char *val = (char*) malloc(MAX_VALLEN * sizeof(char));
+  snprintf(msg, MAX_KEYLEN, "%d:%s", server->port, server->hostname);
+  snprintf(val, MAX_KEYLEN, "%s", server->hostname);
+  snprintf(key, MAX_VALLEN, "%d", server->port);
+  regmsg->type = REGISTER;
+  regmsg->message = msg;
+  regmsg->key = key;
+  regmsg->value = val;
+
+  int ret = kvmessage_send(regmsg, sockfd);
+  kvmessage_free(regmsg);
+  return ret;
 }
 
 /* Attempts to get KEY from SERVER. Returns 0 if successful, else a negative

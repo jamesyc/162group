@@ -7,6 +7,7 @@
 #include "socket_server.h"
 #include "time.h"
 #include "tpcmaster.h"
+#include "utlist.h"
 
 /* Initializes a tpcmaster. Will return 0 if successful, or a negative error
  * code if not. SLAVE_CAPACITY indicates the maximum number of slaves that
@@ -55,7 +56,41 @@ int64_t hash_64_bit(char *s) {
  * Checkpoint 2 only. */
 void tpcmaster_register(tpcmaster_t *master, kvmessage_t *reqmsg,
     kvmessage_t *respmsg) {
-  respmsg->message = ERRMSG_NOT_IMPLEMENTED;
+  tpcslave_t *out;
+  tpcslave_t *newslave = (tpcslave_t*) malloc(sizeof(tpcslave_t));
+  int found = 0;
+  if ((master->slave_count < master->slave_capacity) && reqmsg && respmsg &&
+    reqmsg->key && reqmsg->value && reqmsg->message) {
+    newslave->id = hash_64_bit(reqmsg->message);
+    newslave->host = malloc(strnlen(reqmsg->value, MAX_KEYLEN) * sizeof(char));
+    strncpy(newslave->host, reqmsg->value, MAX_KEYLEN);
+    newslave->port = atoi(reqmsg->key);
+
+    pthread_rwlock_rdlock(&master->slave_lock);
+    DL_FOREACH(master->slaves_head, out) {                                                               \
+      if (out->id == newslave->id) {
+        found = 1;
+        break;
+      }
+    }
+
+    if (!found) {
+      printf("Registered new slave: id=%x\n", newslave->id);
+      pthread_rwlock_wrlock(&master->slave_lock);
+      DL_APPEND(master->slaves_head, newslave);
+      pthread_rwlock_unlock(&master->slave_lock);
+      master->slave_count++;
+    }
+    pthread_rwlock_unlock(&master->slave_lock);
+
+    respmsg->key = NULL;
+    respmsg->value = NULL;
+    respmsg->message = MSG_SUCCESS;
+
+  } else {
+    free(newslave);
+    respmsg->message = ERRMSG_GENERIC_ERROR;
+  }
 }
 
 /* Hashes KEY and finds the first slave that should contain it.
