@@ -9,6 +9,25 @@
 #include "tpcmaster.h"
 #include "utlist.h"
 
+void insert_sorted(tpcslave_t **head, tpcslave_t *ele) {
+  if (*head == NULL) {
+    *head = ele;
+  } else {
+    tpcslave_t *out;
+    int inserted = 0;
+    DL_FOREACH(*head, out) {
+      if (ele->id < out->id) {
+        DL_PREPEND_ELEM(*head, out, ele);
+        inserted = 1;
+        break;
+      }
+    }
+    if (!inserted) {
+      DL_APPEND(*head, ele);
+    }
+  }
+}
+
 /* Initializes a tpcmaster. Will return 0 if successful, or a negative error
  * code if not. SLAVE_CAPACITY indicates the maximum number of slaves that
  * the master will support. REDUNDANCY is the number of replicas (slaves) that
@@ -77,7 +96,7 @@ void tpcmaster_register(tpcmaster_t *master, kvmessage_t *reqmsg,
     if (!found) {
       printf("Registered new slave: id=%x\n", newslave->id);
       pthread_rwlock_wrlock(&master->slave_lock);
-      DL_APPEND(master->slaves_head, newslave);
+      insert_sorted(&master->slaves_head, newslave);
       pthread_rwlock_unlock(&master->slave_lock);
       master->slave_count++;
     }
@@ -100,7 +119,13 @@ void tpcmaster_register(tpcmaster_t *master, kvmessage_t *reqmsg,
  *
  * Checkpoint 2 only. */
 tpcslave_t *tpcmaster_get_primary(tpcmaster_t *master, char *key) {
-  return NULL;
+  tpcslave_t *out;
+  DL_FOREACH(master->slaves_head, out) {
+    if (out->id > hash_64_bit(key)) {
+      return out;
+    }
+  }
+  return master->slaves_head;
 }
 
 /* Returns the slave whose ID comes after PREDECESSOR's, sorted
@@ -109,7 +134,7 @@ tpcslave_t *tpcmaster_get_primary(tpcmaster_t *master, char *key) {
  * Checkpoint 2 only. */
 tpcslave_t *tpcmaster_get_successor(tpcmaster_t *master,
     tpcslave_t *predecessor) {
-  return NULL;
+  return predecessor->next;
 }
 
 /* Handles an incoming GET request REQMSG, and populates the appropriate fields
