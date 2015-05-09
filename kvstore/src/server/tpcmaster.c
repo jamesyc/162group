@@ -105,7 +105,6 @@ void tpcmaster_handle_get(tpcmaster_t *master, kvmessage_t *reqmsg,
   int error = 0;
   respmsg->type = GETRESP;
   respmsg->message = NULL;
-  respmsg->key = reqmsg->key;
   respmsg->value = (char*) malloc(MAX_VALLEN * sizeof(char));
 
   error = kvcache_get(&master->cache, reqmsg->key, &respmsg->value);
@@ -113,7 +112,6 @@ void tpcmaster_handle_get(tpcmaster_t *master, kvmessage_t *reqmsg,
     return;
   }
 
-  free(respmsg->value);
   tpcslave_t *tgt = tpcmaster_get_primary(master, reqmsg->key);
   error = tpcmaster_send_slave_get(tgt, reqmsg->key, &respmsg->value);
   if (!error) {
@@ -121,7 +119,7 @@ void tpcmaster_handle_get(tpcmaster_t *master, kvmessage_t *reqmsg,
   }
 
   int i;
-  for (i = 0; i < master->redundancy; i++) {
+  for (i = 1; i < master->redundancy; i++) {
     tgt = tpcmaster_get_successor(master, tgt);
     error = tpcmaster_send_slave_get(tgt, reqmsg->key, &respmsg->value);
     if (!error)
@@ -132,6 +130,7 @@ void tpcmaster_handle_get(tpcmaster_t *master, kvmessage_t *reqmsg,
     respmsg->type = RESP;
     respmsg->message = ERRMSG_NO_KEY;
     respmsg->value = NULL;
+    respmsg->key = NULL;
   }
 }
 
@@ -195,6 +194,8 @@ void tpcmaster_handle(tpcmaster_t *master, int sockfd, callback_t callback) {
   kvmessage_free(reqmsg);
   if (respmsg.key != NULL)
     free(respmsg.key);
+  if (respmsg.value != NULL)
+    free(respmsg.value);
 }
 
 /* Completely clears this TPCMaster's cache. For testing purposes. */
