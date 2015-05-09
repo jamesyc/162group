@@ -10,22 +10,19 @@
 #include "utlist.h"
 
 void insert_sorted(tpcslave_t **head, tpcslave_t *ele) {
-  if (*head == NULL) {
-    *head = ele;
-  } else {
-    tpcslave_t *out;
-    int inserted = 0;
-    DL_FOREACH(*head, out) {
-      if (ele->id < out->id) {
-        DL_PREPEND_ELEM(*head, out, ele);
-        inserted = 1;
-        break;
-      }
-    }
-    if (!inserted) {
-      DL_APPEND(*head, ele);
+  tpcslave_t *out;
+  int inserted = 0;
+  DL_FOREACH(*head, out) {
+    if (ele->id < out->id) {
+      DL_PREPEND_ELEM(*head, out, ele);
+      inserted = 1;
+      break;
     }
   }
+  if (!inserted) {
+    DL_APPEND(*head, ele);
+  }
+
 }
 
 /* Initializes a tpcmaster. Will return 0 if successful, or a negative error
@@ -78,12 +75,14 @@ void tpcmaster_register(tpcmaster_t *master, kvmessage_t *reqmsg,
   tpcslave_t *out;
   tpcslave_t *newslave = (tpcslave_t*) malloc(sizeof(tpcslave_t));
   int found = 0;
+  char *hashstr = (char*) malloc(MAX_KEYLEN * sizeof(char));
   if ((master->slave_count < master->slave_capacity) && reqmsg && respmsg &&
-    reqmsg->key && reqmsg->value && reqmsg->message) {
-    newslave->id = hash_64_bit(reqmsg->message);
-    newslave->host = malloc(strnlen(reqmsg->value, MAX_KEYLEN) * sizeof(char));
-    strncpy(newslave->host, reqmsg->value, MAX_KEYLEN);
-    newslave->port = atoi(reqmsg->key);
+    reqmsg->key && reqmsg->value) {
+    newslave->host = malloc(strnlen(reqmsg->key, MAX_KEYLEN) * sizeof(char));
+    strncpy(newslave->host, reqmsg->key, MAX_KEYLEN);
+    newslave->port = atoi(reqmsg->value);
+    snprintf(hashstr, MAX_KEYLEN, "%d:%s", newslave->port, newslave->host);
+    newslave->id = hash_64_bit(hashstr);
 
     pthread_rwlock_rdlock(&master->slave_lock);
     DL_FOREACH(master->slaves_head, out) {                                                               \
@@ -92,6 +91,7 @@ void tpcmaster_register(tpcmaster_t *master, kvmessage_t *reqmsg,
         break;
       }
     }
+    pthread_rwlock_unlock(&master->slave_lock);
 
     if (!found) {
       printf("Registered new slave: id=%x\n", newslave->id);
@@ -100,8 +100,8 @@ void tpcmaster_register(tpcmaster_t *master, kvmessage_t *reqmsg,
       pthread_rwlock_unlock(&master->slave_lock);
       master->slave_count++;
     }
-    pthread_rwlock_unlock(&master->slave_lock);
 
+    respmsg->type = RESP;
     respmsg->key = NULL;
     respmsg->value = NULL;
     respmsg->message = MSG_SUCCESS;
@@ -134,7 +134,11 @@ tpcslave_t *tpcmaster_get_primary(tpcmaster_t *master, char *key) {
  * Checkpoint 2 only. */
 tpcslave_t *tpcmaster_get_successor(tpcmaster_t *master,
     tpcslave_t *predecessor) {
-  return predecessor->next;
+  if (predecessor->next) {
+    return predecessor->next;
+  } else {
+    return master->slaves_head;
+  }
 }
 
 /* Handles an incoming GET request REQMSG, and populates the appropriate fields
