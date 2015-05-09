@@ -142,6 +142,8 @@ tpcslave_t *tpcmaster_get_primary(tpcmaster_t *master, char *key) {
   }
   if (current->next) {
     current = current->next;
+  } else {
+    current = master->slaves_head;
   }
   pthread_rwlock_unlock(&master->slave_lock);
   return current;
@@ -154,9 +156,11 @@ tpcslave_t *tpcmaster_get_primary(tpcmaster_t *master, char *key) {
 tpcslave_t *tpcmaster_get_successor(tpcmaster_t *master,
     tpcslave_t *predecessor) {
   pthread_rwlock_rdlock(&master->slave_lock);
-  tpcslave_t* current = master->slaves_head;
-  while (current->next && predecessor->id != current->id) {
-    current = current->next;
+  tpcslave_t* current;
+  if (predecessor->next) {
+    current = predecessor->next;
+  } else {
+    current = master->slaves_head;
   }
   pthread_rwlock_unlock(&master->slave_lock);
   return current;
