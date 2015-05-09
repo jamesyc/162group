@@ -2,6 +2,7 @@
 #include <unistd.h>
 #include <sys/socket.h>
 #include <netdb.h>
+#include <stdlib.h>
 #include "kvconstants.h"
 #include "kvmessage.h"
 #include "socket_server.h"
@@ -55,7 +56,75 @@ int64_t hash_64_bit(char *s) {
  * Checkpoint 2 only. */
 void tpcmaster_register(tpcmaster_t *master, kvmessage_t *reqmsg,
     kvmessage_t *respmsg) {
-  respmsg->message = ERRMSG_NOT_IMPLEMENTED;
+  /* Generate ID for slave registration */
+  char *host = malloc(strlen(reqmsg->key)+1);
+  unsigned int port;
+  strcpy(host, reqmsg->key);
+  port = atoi(reqmsg->value);
+
+  char *idstring = malloc(strlen(reqmsg->key)+strlen(reqmsg->value)+2);
+  strcpy(idstring, reqmsg->value);
+  strcat(idstring, ":");
+  strcat(idstring, reqmsg->key);
+  int64_t idhash;
+  idhash = hash_64_bit(idstring);
+  free(idstring);
+
+  /* Try to add info to the MASTER's list of slaves */
+  int error = 0;
+  pthread_rwlock_wrlock(&master->slave_lock);
+  if (master->slave_count < master->slave_capacity) {
+    tpcslave_t* newslave = malloc(sizeof(tpcslave_t));
+    newslave->id = idhash;
+    newslave->host = host;
+    newslave->port = port;
+    newslave->next = NULL;
+    newslave->prev = NULL;
+    int already_exists = 0;
+    if (master->slaves_head) {
+      if (idhash < master->slaves_head->id) {
+        newslave->next = master->slaves_head;
+        master->slaves_head->prev = newslave;
+        master->slaves_head = newslave;
+      } else {
+        tpcslave_t* current = master->slaves_head;
+        if (current->id == idhash) {
+          already_exists = 1;
+        }
+        while (current->next != NULL && current->id < idhash) {
+          current = current->next;
+          if (current->id == idhash) {
+            already_exists = 1;
+          }
+        }
+        if (!already_exists) {
+          if (current->next) {
+            newslave->next = current->next;
+            newslave->next->prev = newslave;
+          }
+          current->next = newslave;
+          newslave->prev = current;
+        }
+      }
+        
+    } else {
+      master->slaves_head = newslave;
+    }
+    if (!already_exists) {
+      master->slave_count++;
+    }
+  } else {
+    error = -1;
+  }
+  pthread_rwlock_unlock(&master->slave_lock);
+
+  /* Respond to registration request */
+  if (error == 0) {
+    respmsg->message = MSG_SUCCESS;
+  } else {
+    respmsg->message = ERRMSG_GENERIC_ERROR;
+  }
+
 }
 
 /* Hashes KEY and finds the first slave that should contain it.
@@ -65,7 +134,17 @@ void tpcmaster_register(tpcmaster_t *master, kvmessage_t *reqmsg,
  *
  * Checkpoint 2 only. */
 tpcslave_t *tpcmaster_get_primary(tpcmaster_t *master, char *key) {
-  return NULL;
+  int64_t keyhash = hash_64_bit(key);
+  pthread_rwlock_rdlock(&master->slave_lock);
+  tpcslave_t* current = master->slaves_head;
+  while (current->next && current->next->id <= keyhash) {
+    current = current->next;
+  }
+  if (current->next) {
+    current = current->next;
+  }
+  pthread_rwlock_unlock(&master->slave_lock);
+  return current;
 }
 
 /* Returns the slave whose ID comes after PREDECESSOR's, sorted
@@ -74,7 +153,13 @@ tpcslave_t *tpcmaster_get_primary(tpcmaster_t *master, char *key) {
  * Checkpoint 2 only. */
 tpcslave_t *tpcmaster_get_successor(tpcmaster_t *master,
     tpcslave_t *predecessor) {
-  return NULL;
+  pthread_rwlock_rdlock(&master->slave_lock);
+  tpcslave_t* current = master->slaves_head;
+  while (current->next && predecessor->id != current->id) {
+    current = current->next;
+  }
+  pthread_rwlock_unlock(&master->slave_lock);
+  return current;
 }
 
 /* Handles an incoming GET request REQMSG, and populates the appropriate fields

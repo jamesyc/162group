@@ -45,7 +45,39 @@ int kvserver_init(kvserver_t *server, char *dirname, unsigned int num_sets,
  *
  * Checkpoint 2 only. */
 int kvserver_register_master(kvserver_t *server, int sockfd) {
-  return 0;
+  kvmessage_t *respmsg, regmsg;
+
+  /* Make register message */
+  memset(&regmsg, 0, sizeof(kvmessage_t));
+
+  regmsg.type = REGISTER;
+
+  regmsg.key = calloc(1, strlen(server->hostname) + 1);
+  strcpy(regmsg.key, server->hostname);
+
+  char portstr[15];
+  sprintf(portstr, "%d", server->port);
+  regmsg.value = calloc(1, strlen(portstr) + 1);
+  strcpy(regmsg.value, portstr);
+
+  /* Send and cleanup register message */
+  kvmessage_send(&regmsg, sockfd);
+  if (regmsg.key != NULL)
+    free(regmsg.key);
+  if (regmsg.value != NULL)
+    free(regmsg.value);
+
+  /* Recieve and parse master response message */
+  respmsg = kvmessage_parse(sockfd);
+  int error = 0;
+  if (respmsg != NULL) {
+    if (strcmp(respmsg->message, MSG_SUCCESS) != 0) {
+      error = -1;
+    }
+    kvmessage_free(respmsg);
+  }
+
+  return error;
 }
 
 /* Attempts to get KEY from SERVER. Returns 0 if successful, else a negative
