@@ -79,7 +79,9 @@ tpcslave_t *tpcmaster_get_successor(tpcmaster_t *master,
 
 /* Sends a GET request to a tpcslave */
 int tpcmaster_send_slave_get(tpcslave_t *slave, char *key, char **dest) {
+  pthread_rwlock_rdlock(&master->slave_lock);
   int fd = connect_to(slave->host, slave->port, 2);
+  pthread_rwlock_unlock(&master->slave_lock);
   kvmessage_t *slaveresp, *slaveget = (kvmessage_t*) malloc(sizeof(kvmessage_t));
   slaveget->type = GETREQ;
   slaveget->key = key;
