@@ -77,6 +77,24 @@ tpcslave_t *tpcmaster_get_successor(tpcmaster_t *master,
   return NULL;
 }
 
+/* Sends a GET request to a tpcslave */
+int tpcmaster_send_slave_get(tpcslave_t *slave, char *key, char **dest) {
+  int fd = connect_to(slave->host, slave->port, 2);
+  kvmessage_t *slaveresp, *slaveget = (kvmessage_t*) malloc(sizeof(kvmessage_t));
+  slaveget->type = GETREQ;
+  slaveget->key = key;
+  slaveget->value = NULL;
+  slaveget->message = NULL;
+  kvmessage_send(slaveget, fd);
+  slaveresp = kvmessage_parse(fd);
+  if (slaveresp->type != GETRESP) {
+    return -1;
+  } else {
+    *dest = slaveresp->value;
+    return 0;
+  }
+}
+
 /* Handles an incoming GET request REQMSG, and populates the appropriate fields
  * of RESPMSG as a response. RESPMSG and REQMSG both must point to valid
  * kvmessage_t structs.
@@ -84,7 +102,37 @@ tpcslave_t *tpcmaster_get_successor(tpcmaster_t *master,
  * Checkpoint 2 only. */
 void tpcmaster_handle_get(tpcmaster_t *master, kvmessage_t *reqmsg,
     kvmessage_t *respmsg) {
-  respmsg->message = ERRMSG_NOT_IMPLEMENTED;
+  int error = 0;
+  respmsg->type = GETRESP;
+  respmsg->message = NULL;
+  respmsg->key = reqmsg->key;
+  respmsg->value = (char*) malloc(MAX_VALLEN * sizeof(char));
+
+  error = kvcache_get(&master->cache, reqmsg->key, &respmsg->value);
+  if (!error) {
+    return;
+  }
+
+  free(respmsg->value);
+  tpcslave_t *tgt = tpcmaster_get_primary(master, reqmsg->key);
+  error = tpcmaster_send_slave_get(tgt, reqmsg->key, &respmsg->value);
+  if (!error) {
+    return;
+  }
+
+  int i;
+  for (i = 0; i < master->redundancy; i++) {
+    tgt = tpcmaster_get_successor(master, tgt);
+    error = tpcmaster_send_slave_get(tgt, reqmsg->key, &respmsg->value);
+    if (!error)
+      break;
+  }
+
+  if (error < 0) {
+    respmsg->type = RESP;
+    respmsg->message = ERRMSG_NO_KEY;
+    respmsg->value = NULL;
+  }
 }
 
 /* Handles an incoming TPC request REQMSG, and populates the appropriate fields
