@@ -120,6 +120,9 @@ void tpcmaster_register(tpcmaster_t *master, kvmessage_t *reqmsg,
 
   /* Respond to registration request */
   if (error == 0) {
+    respmsg->type = RESP;
+    respmsg->key = NULL;
+    respmsg->value = NULL;
     respmsg->message = MSG_SUCCESS;
   } else {
     respmsg->message = ERRMSG_GENERIC_ERROR;
