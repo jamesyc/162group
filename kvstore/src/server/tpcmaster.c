@@ -137,13 +137,14 @@ tpcslave_t *tpcmaster_get_primary(tpcmaster_t *master, char *key) {
   int64_t keyhash = hash_64_bit(key);
   pthread_rwlock_rdlock(&master->slave_lock);
   tpcslave_t* current = master->slaves_head;
-  while (current->next && current->next->id <= keyhash) {
+  while (current->next && current->id <= keyhash) {
     current = current->next;
   }
   if (current->next) {
-    current = current->next;
   } else {
-    current = master->slaves_head;
+    if (current->id <= keyhash) {
+      current = master->slaves_head;
+    }
   }
   pthread_rwlock_unlock(&master->slave_lock);
   return current;
